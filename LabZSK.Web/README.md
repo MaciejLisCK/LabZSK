@@ -13,7 +13,11 @@ npm test -- --watch=false
 npm run build        # wynik w dist/labzsk-web/browser – wystarczy dowolny serwer plików statycznych
 ```
 
-Przy publikacji w podkatalogu (np. GitHub Pages) zbuduj z `npx ng build --base-href /LabZSK/`.
+## Publikacja na GitHub Pages
+
+Workflow `.github/workflows/web.yml` testuje i buduje aplikację przy każdej zmianie, a po wypchnięciu na `master`
+publikuje ją pod adresem https://maciejlisck.github.io/LabZSK/. Jednorazowo trzeba włączyć Pages w ustawieniach
+repozytorium: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
 ## Struktura
 
