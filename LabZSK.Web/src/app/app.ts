@@ -226,6 +226,10 @@ export class App {
     }
   }
 
+  protected loadExample(): void {
+    if (!this.svc.sim.isRunning && confirm('Zastąpić mikroprogram i pamięć operacyjną przykładem?')) this.svc.loadExample();
+  }
+
   protected clearPm(): void {
     if (!this.svc.sim.isRunning && confirm('Czy na pewno chcesz wyczyścić cały mikroprogram?')) this.svc.clearPm();
   }

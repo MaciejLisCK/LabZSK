@@ -19,6 +19,13 @@ Workflow `.github/workflows/web.yml` testuje i buduje aplikację przy każdej zm
 publikuje ją pod adresem https://maciejlisck.github.io/LabZSK/. Jednorazowo trzeba włączyć Pages w ustawieniach
 repozytorium: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
+## Przykład
+
+Menu **Mikroprogramy → Wczytaj przykład (PM + PAO)** ładuje przykładowy mikroprogram i program, które liczą
+`PAO[23] = PAO[20] + PAO[21] − PAO[22]`, a przy wyniku 0 przeskakują NOP. Mikroprogram jest opisany w
+`src/app/core/examples.ts`, a te same dane leżą w plikach `public/examples/przyklad.pm` i `przyklad.po`, które
+wczytuje też desktopowy LabZSK.
+
 ## Struktura
 
 | Katalog | Zawartość | Odpowiednik w C# |

@@ -27,7 +27,8 @@
       <summary>Mikroprogramy</summary>
       <div class="menu-items">
         <button type="button" (click)="pickFile('pm')" [disabled]="sim.isRunning">Wczytaj… (.pm)</button>
-        <button type="button" (click)="svc.savePmFile()">Zapisz… (.pm)</button>
+        <button type="button" (click)="loadExample()" [disabled]="sim.isRunning">Wczytaj przykład (PM + PAO)</button>
+          <button type="button" (click)="svc.savePmFile()">Zapisz… (.pm)</button>
         <button type="button" (click)="svc.printPm()">Drukuj (.txt)</button>
         <button type="button" (click)="clearPm()" [disabled]="sim.isRunning">Wyczyść mikroprogram</button>
       </div>

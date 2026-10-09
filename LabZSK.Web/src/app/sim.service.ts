@@ -10,6 +10,7 @@ import {
 } from './core/files';
 import { MemCell, emptyCell, printPAO } from './core/memory';
 import { MicroOp, emptyPM, pmEdit, printPM } from './core/microcode';
+import { examplePAO, examplePM } from './core/examples';
 import { AutoRunTarget, SavedState, SimSettings, Simulator, StudentInfo } from './core/simulator';
 
 const STORAGE_KEY = 'labzsk-web-state-v1';
@@ -174,6 +175,13 @@ export class SimService {
     } catch (e) {
       this.notify(e instanceof FileFormatError ? e.message : 'Nie udało się wczytać pliku mikroprogramu.', true);
     }
+  }
+
+  /** Loads the sample microprogram and program (core/examples.ts). */
+  loadExample(): void {
+    this.sim.loadPm(examplePM());
+    this.sim.loadPao(examplePAO());
+    this.notify('Wczytano przykład: PAO[23] = PAO[20] + PAO[21] − PAO[22]. Ustaw LR = 0 i RAPS = 0, potem MAKRO.');
   }
 
   savePmFile(): void {
