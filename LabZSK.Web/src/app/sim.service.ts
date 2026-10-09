@@ -57,6 +57,10 @@ export class SimService {
   readonly version = signal(0);
   readonly message = signal<{ text: string; error: boolean } | null>(null);
   readonly skin = signal<Skin>((readStorage(SKIN_KEY) as Skin) || 'light');
+  /** Event counters for the decorations of the Christmas skin. */
+  readonly correctCount = signal(0);
+  readonly mistakeCount = signal(0);
+  readonly startCount = signal(0);
   /** Last state saved while the simulation was idle (registers are consistent only then). */
   private lastIdle: SavedState | null = null;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -74,7 +78,11 @@ export class SimService {
       this.version.update((v) => v + 1);
       this.scheduleSave();
     };
-    this.sim.onMistake = () => this.beep();
+    this.sim.onMistake = () => {
+      this.beep();
+      this.mistakeCount.update((n) => n + 1);
+    };
+    this.sim.onCorrect = () => this.correctCount.update((n) => n + 1);
     this.lastIdle = this.sim.toSaved();
     window.addEventListener('pagehide', () => this.save());
   }
@@ -135,6 +143,7 @@ export class SimService {
   }
 
   start(micro: boolean, autoRun: AutoRunTarget | null = null): void {
+    this.startCount.update((n) => n + 1);
     void this.sim.start(micro, autoRun);
   }
 

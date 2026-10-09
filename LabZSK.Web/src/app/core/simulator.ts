@@ -116,6 +116,8 @@ export class Simulator {
   onChange: () => void = () => {};
   /** Called when the student gave a wrong value (the original played a beep). */
   onMistake: () => void = () => {};
+  /** Called when the student gave a correct value. */
+  onCorrect: () => void = () => {};
 
   private cells: boolean[][] = Array.from({ length: 11 }, () => new Array<boolean>(8).fill(false));
   private raps = 0;
@@ -377,6 +379,7 @@ export class Simulator {
         else if (this.mistakes >= s.firstMark) this.mark = 4;
         else this.mark = 5;
       } else {
+        this.onCorrect();
         this.addTextToLog(`${prefix}${name.padStart(15, ' ')} = ${reg.value} / ${hex16(reg.value)}h\n`);
       }
       this.registerToCheck = '';

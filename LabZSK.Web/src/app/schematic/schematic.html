@@ -1,5 +1,11 @@
 @let sim = svc.at(svc.version());
-<div class="board" [attr.data-skin]="svc.skin()" [class.edit]="sim.inEditMode">
+<div
+  class="board"
+  [attr.data-skin]="svc.skin()"
+  [class.edit]="sim.inEditMode"
+  [class.snow-off]="snowFalling()"
+  [style.--snow]="snow()"
+>
   <svg [attr.viewBox]="'0 0 ' + W + ' ' + H" preserveAspectRatio="none" aria-hidden="true">
     @for (d of paths().fill; track $index) {
       <path [attr.d]="d" class="alu" />
@@ -17,6 +23,11 @@
       @for (d of paths().thin; track $index) {
         <path [attr.d]="d" class="stripe thin" />
       }
+      <g class="drifts" [class.falling]="snowFalling()">
+        @for (l of ledges(); track $index) {
+          <rect [attr.x]="l.x" [attr.y]="l.y - 17" [attr.width]="l.w" height="12" rx="6" class="drift" />
+        }
+      </g>
       <g class="tree" transform="translate(165 0)">
         <rect x="-9" y="462" width="18" height="22" class="trunk" />
         <g class="sway">
@@ -25,10 +36,7 @@
             <path d="M 0 385 L -58 440 H 58 Z" />
             <path d="M 0 410 L -74 468 H 74 Z" />
           </g>
-          <path
-            d="M -30 404 Q 0 414 32 400 M -46 434 Q 0 446 50 428 M -62 462 Q 0 474 66 456"
-            class="garland"
-          />
+          <path d="M -30 404 Q 0 414 32 400 M -46 434 Q 0 446 50 428 M -62 462 Q 0 474 66 456" class="garland" />
           @for (o of ornaments; track $index) {
             <circle
               [attr.cx]="o.x"
@@ -36,6 +44,7 @@
               r="5"
               [attr.fill]="o.color"
               class="ornament"
+              [class.gone]="isDropped($index)"
               [style.animation-delay]="o.delay"
             />
           }
@@ -44,17 +53,35 @@
             d="M 0 350 L 4.1 360.4 L 15.2 361.1 L 6.6 368.2 L 9.4 379 L 0 373 L -9.4 379 L -6.6 368.2 L -15.2 361.1 L -4.1 360.4 Z"
           />
         </g>
+        @for (b of bursts(); track b) {
+          <g transform="translate(0 365)">
+            <g class="burst">
+              <circle r="16" class="glow" />
+              @for (s of sparks; track $index) {
+                <path [attr.d]="s" class="spark" />
+              }
+            </g>
+          </g>
+        }
+        @for (d of drops(); track d.seq) {
+          @let o = ornaments[d.index];
+          <circle
+            [attr.cx]="o.x"
+            [attr.cy]="o.y"
+            r="5"
+            [attr.fill]="o.color"
+            class="dropped"
+            [style.--fall]="480 - o.y + 'px'"
+            [style.--roll]="(o.x < 0 ? -1 : 1) * (40 + d.index * 4) + 'px'"
+          />
+        }
         <rect x="-110" y="466" width="26" height="20" rx="2" class="gift" fill="rgb(214 31 38)" />
         <path d="M -97 466 V 486 M -110 476 H -84" class="ribbon" />
         <rect x="80" y="470" width="22" height="16" rx="2" class="gift" fill="rgb(40 110 200)" />
         <path d="M 91 470 V 486 M 80 478 H 102" class="ribbon" />
       </g>
       @for (b of bulbs; track $index) {
-        <g
-          class="bulb"
-          [attr.transform]="'translate(' + b.x + ' 8)'"
-          [style.animation-delay]="b.delay"
-        >
+        <g class="bulb" [attr.transform]="'translate(' + b.x + ' 8)'" [style.animation-delay]="b.delay">
           <path d="M 0 0 V 8" class="wire" />
           <rect x="-3" y="6" width="6" height="4" rx="1" class="cap" />
           <ellipse cx="0" cy="15" rx="4.5" ry="6" [attr.fill]="b.color" />

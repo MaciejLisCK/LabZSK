@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
 import { hex16, parseRegisterInput } from '../core/int16';
 import { FLAG_NAMES, FlagName, NON_EDITABLE, RegName } from '../core/registers';
 import { SimService } from '../sim.service';
@@ -149,6 +159,44 @@ const ORNAMENTS = [
   { x: 54, y: 454 },
 ].map((o, i) => ({ ...o, color: BULB_COLORS[i % BULB_COLORS.length], delay: `${(i % 5) * -0.5}s` }));
 
+/** Horizontal segments of the bus paths – snow piles up on them. */
+function horizontalSegments(paths: string[]): { x: number; y: number; w: number }[] {
+  const out: { x: number; y: number; w: number }[] = [];
+  for (const d of paths) {
+    const t = d.split(' ');
+    let x = 0;
+    let y = 0;
+    for (let i = 0; i < t.length;) {
+      const cmd = t[i];
+      if (cmd === 'M' || cmd === 'L') {
+        x = +t[i + 1];
+        y = +t[i + 2];
+        i += 3;
+      } else if (cmd === 'H') {
+        const nx = +t[i + 1];
+        if (Math.abs(nx - x) > 20) out.push({ x: Math.min(x, nx) + 4, y, w: Math.abs(nx - x) - 8 });
+        x = nx;
+        i += 2;
+      } else if (cmd === 'V') {
+        y = +t[i + 1];
+        i += 2;
+      } else i++;
+    }
+  }
+  return out;
+}
+
+/** Sparks around the star after a correct answer. */
+const SPARKS = Array.from({ length: 10 }, (_, i) => {
+  const a = (i / 10) * Math.PI * 2;
+  return `M ${(Math.cos(a) * 14).toFixed(1)} ${(Math.sin(a) * 14).toFixed(1)} L ${(Math.cos(a) * 24).toFixed(1)} ${(Math.sin(a) * 24).toFixed(1)}`;
+});
+
+/** Time [ms] after which the snow on the buses reaches its full height. */
+const SNOW_FULL_MS = 90_000;
+/** Snow already lying when the page opens or after it slid off. */
+const SNOW_MIN = 0.2;
+
 /** Snowflakes of the Christmas skin. */
 const FLAKES = (() => {
   const r = rng(2412);
@@ -165,7 +213,7 @@ const FLAKES = (() => {
 @Component({
   selector: 'app-schematic',
   templateUrl: './schematic.html',
-  styleUrl: './schematic.css',
+  styleUrls: ['./schematic.css', './schematic-xmas.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Schematic {
@@ -184,10 +232,42 @@ export class Schematic {
   protected readonly bulbs = BULBS;
   protected readonly flakes = FLAKES;
   protected readonly ornaments = ORNAMENTS;
+  protected readonly sparks = SPARKS;
+  protected readonly ledges = computed(() => horizontalSegments(this.paths().thick));
+  /** Bursts of sparks (correct answers) and falling baubles (mistakes) currently animated. */
+  protected readonly bursts = signal<number[]>([]);
+  protected readonly drops = signal<{ seq: number; index: number }[]>([]);
+  /** Height of the snow lying on buses and registers, 0..1. */
+  protected readonly snow = signal(SNOW_MIN);
+  protected readonly snowFalling = signal(false);
+  private nextDrop = 0;
   private lastFocused = '';
   private dragValue: number | null = null;
 
   constructor() {
+    this.watch(this.svc.correctCount, (seq) => {
+      this.bursts.update((b) => [...b, seq]);
+      setTimeout(() => this.bursts.update((b) => b.filter((s) => s !== seq)), 1200);
+    });
+    this.watch(this.svc.mistakeCount, (seq) => {
+      const index = this.nextDrop++ % ORNAMENTS.length;
+      this.drops.update((d) => [...d.filter((x) => x.index !== index), { seq, index }]);
+      setTimeout(() => this.drops.update((d) => d.filter((x) => x.seq !== seq)), 4000);
+    });
+    this.watch(this.svc.startCount, () => {
+      if (this.snow() <= SNOW_MIN) return;
+      this.snowFalling.set(true);
+      setTimeout(() => {
+        this.snow.set(SNOW_MIN);
+        this.snowFalling.set(false);
+      }, 900);
+    });
+    const step = 2000;
+    const timer = setInterval(() => {
+      if (this.xmas() && !this.snowFalling()) this.snow.update((s) => Math.min(1, s + step / SNOW_FULL_MS));
+    }, step);
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+
     // Move the keyboard focus to the register the student has to fill in.
     effect(() => {
       this.svc.version();
@@ -202,6 +282,21 @@ export class Schematic {
       }
       if (!key) this.lastFocused = '';
     });
+  }
+
+  /** Runs `fn` on every change of a counter (skips the initial value) while the Christmas skin is on. */
+  private watch(counter: () => number, fn: (value: number) => void): void {
+    let last = counter();
+    effect(() => {
+      const value = counter();
+      if (value === last) return;
+      last = value;
+      if (this.xmas()) untracked(() => fn(value));
+    });
+  }
+
+  protected isDropped(index: number): boolean {
+    return this.drops().some((d) => d.index === index);
   }
 
   protected boxStyle(name: RegName | 'RBPS') {

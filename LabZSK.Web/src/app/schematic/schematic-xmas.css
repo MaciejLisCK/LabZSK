@@ -1,0 +1,239 @@
+/* Christmas skin – decorations and their animations. */
+.board[data-skin='xmas'] {
+  --board-bg: rgb(9 18 38);
+  --board-bus: rgb(245 245 245);
+  --board-text: rgb(255 214 92);
+  background:
+    linear-gradient(to top, rgb(235 242 250 / 0.9), rgb(235 242 250 / 0) 5%),
+    radial-gradient(ellipse at 50% 0%, rgb(28 52 92), var(--board-bg) 70%);
+}
+.board[data-skin='xmas'] .alu {
+  fill: rgb(214 170 50);
+}
+.board[data-skin='xmas'] .reg:not(.check),
+.board[data-skin='xmas'] .flag {
+  /* Snow lying on top of the registers. */
+  /* Snow lying on top of the registers – it grows over time (--snow 0..1). */
+  box-shadow: inset 0 calc(0.12em + var(--snow, 0) * 0.42em) 0 rgb(250 252 255);
+}
+.board[data-skin='xmas'].snow-off .reg:not(.check),
+.board[data-skin='xmas'].snow-off .flag {
+  box-shadow: inset 0 0.2em 0 rgb(250 252 255);
+  transition: box-shadow 0.8s ease-in;
+}
+
+/* Snow drifts on the buses; they slide off when a new cycle starts. */
+.drift {
+  fill: rgb(250 252 255);
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transform: scaleY(var(--snow, 0));
+}
+.drifts.falling {
+  animation: slide-off 0.9s ease-in forwards;
+}
+@keyframes slide-off {
+  to {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+.board[data-skin='xmas'] .label {
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
+}
+
+/* Candy cane stripes running along the buses. */
+.stripe {
+  fill: none;
+  stroke: rgb(214 31 38);
+  stroke-width: 10;
+  stroke-linejoin: bevel;
+  stroke-dasharray: 10 10;
+  animation: candy 1.2s linear infinite;
+}
+.stripe.thin {
+  stroke-width: 5;
+  stroke-dasharray: 6 6;
+}
+@keyframes candy {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.bulb {
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+.bulb .wire {
+  stroke: rgb(30 90 40);
+  stroke-width: 2;
+}
+.bulb .cap {
+  fill: rgb(120 130 140);
+}
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 4px rgb(255 255 255 / 0.9)) brightness(1.15);
+  }
+  50% {
+    opacity: 0.35;
+    filter: none;
+  }
+}
+
+.tree .crown {
+  fill: rgb(28 120 62);
+  stroke: rgb(16 80 40);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.tree .sway {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: sway 6s ease-in-out infinite;
+}
+.tree .trunk {
+  fill: rgb(110 70 40);
+}
+.tree .garland {
+  fill: none;
+  stroke: rgb(255 214 92);
+  stroke-width: 2;
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
+  animation: candy 2s linear infinite;
+}
+.tree .ornament {
+  stroke: rgb(255 255 255 / 0.6);
+  stroke-width: 1;
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+.tree .ornament.gone {
+  visibility: hidden;
+}
+/* A bauble falls off the tree after a mistake. */
+.tree .dropped {
+  stroke: rgb(255 255 255 / 0.6);
+  stroke-width: 1;
+  animation: drop 4s ease-in forwards;
+}
+@keyframes drop {
+  0% {
+    transform: translate(0, 0);
+  }
+  22% {
+    transform: translate(calc(var(--roll) * 0.3), var(--fall));
+    animation-timing-function: ease-out;
+  }
+  30% {
+    transform: translate(calc(var(--roll) * 0.6), calc(var(--fall) - 14px));
+    animation-timing-function: ease-in;
+  }
+  38% {
+    transform: translate(calc(var(--roll) * 0.8), var(--fall));
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  85% {
+    transform: translate(var(--roll), var(--fall));
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--roll), var(--fall));
+    opacity: 0;
+  }
+}
+/* Sparks around the star after a correct answer. */
+.tree .burst {
+  animation: burst 1.2s ease-out forwards;
+}
+.tree .burst .glow {
+  fill: rgb(255 214 92 / 0.55);
+}
+.tree .burst .spark {
+  stroke: rgb(255 240 180);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+@keyframes burst {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+.tree .star {
+  fill: rgb(255 214 92);
+  stroke: rgb(255 240 180);
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: shine 3s ease-in-out infinite;
+}
+.tree .ribbon {
+  stroke: rgb(255 214 92);
+  stroke-width: 3;
+}
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-1deg);
+  }
+  50% {
+    transform: rotate(1deg);
+  }
+}
+@keyframes shine {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 0 3px rgb(255 214 92 / 0.6));
+  }
+  50% {
+    transform: scale(1.15) rotate(8deg);
+    filter: drop-shadow(0 0 9px rgb(255 214 92));
+  }
+}
+
+.snow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.flake {
+  position: absolute;
+  top: -5%;
+  color: rgb(255 255 255 / 0.85);
+  line-height: 1;
+  animation: fall linear infinite;
+}
+@keyframes fall {
+  from {
+    top: -5%;
+    transform: translateX(0) rotate(0deg);
+  }
+  to {
+    top: 102%;
+    transform: translateX(var(--drift, 0)) rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stripe,
+  .bulb,
+  .flake,
+  .tree .sway,
+  .tree .sway *,
+  .tree .garland {
+    animation: none;
+  }
+  .flake {
+    display: none;
+  }
+}

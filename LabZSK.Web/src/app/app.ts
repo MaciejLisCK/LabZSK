@@ -10,6 +10,7 @@ import { PaoTable } from './pao-table/pao-table';
 import { PmTable } from './pm-table/pm-table';
 import { Schematic } from './schematic/schematic';
 import { SimService } from './sim.service';
+import { Snowman } from './snowman/snowman';
 
 type FileKind = 'pm' | 'po' | 'log';
 
@@ -42,6 +43,7 @@ function loadSizes(): PaneSizes {
   selector: 'app-root',
   imports: [
     Schematic,
+    Snowman,
     PmTable,
     PaoTable,
     PmCellDialog,
