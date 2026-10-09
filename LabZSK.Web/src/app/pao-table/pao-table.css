@@ -3,6 +3,7 @@
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 8px;
   min-height: 0;
+  container-type: size;
 }
 .scroll {
   overflow: auto;
@@ -62,8 +63,8 @@ tr:focus {
 .desc {
   margin: 0;
   padding: 8px 10px;
-  min-height: 6.5em;
-  max-height: 12em;
+  min-height: min(6.5em, 30cqh);
+  max-height: min(12em, 45cqh);
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 6px;

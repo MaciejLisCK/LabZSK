@@ -13,6 +13,31 @@ import { SimService } from './sim.service';
 
 type FileKind = 'pm' | 'po' | 'log';
 
+/** Sizes of the resizable panes: right column width [px], heights of the top panes [% of the column]. */
+interface PaneSizes {
+  rightW: number;
+  simH: number;
+  ctrlH: number;
+}
+type PaneKey = keyof PaneSizes;
+
+const SIZES_KEY = 'labzsk-web-layout';
+const DEFAULT_SIZES: PaneSizes = { rightW: 380, simH: 60, ctrlH: 55 };
+const LIMITS: Record<PaneKey, [number, number]> = { rightW: [260, 900], simH: [15, 85], ctrlH: [15, 85] };
+
+const clampSize = (key: PaneKey, v: number) => Math.round(Math.min(LIMITS[key][1], Math.max(LIMITS[key][0], v)));
+
+function loadSizes(): PaneSizes {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SIZES_KEY) ?? '{}') as Partial<PaneSizes>;
+    const out = { ...DEFAULT_SIZES };
+    for (const k of Object.keys(out) as PaneKey[]) if (typeof saved[k] === 'number') out[k] = clampSize(k, saved[k]!);
+    return out;
+  } catch {
+    return { ...DEFAULT_SIZES };
+  }
+}
+
 @Component({
   selector: 'app-root',
   imports: [
@@ -45,6 +70,9 @@ export class App {
   private fileKind: FileKind = 'pm';
   private pendingStart: boolean | null = null;
   protected readonly now = signal(Date.now());
+  private readonly layout = viewChild.required<ElementRef<HTMLElement>>('layout');
+  protected readonly sizes = signal<PaneSizes>(loadSizes());
+  protected readonly dragging = signal(false);
 
   constructor() {
     setInterval(() => this.now.set(Date.now()), 1000);
@@ -59,6 +87,63 @@ export class App {
 
   protected clock(d: Date | null): string {
     return d ? d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }) : '–';
+  }
+
+  /* ---------------------------------------------------------- pane sizes */
+
+  private setSize(key: PaneKey, value: number): void {
+    this.sizes.update((s) => ({ ...s, [key]: clampSize(key, value) }));
+    try {
+      localStorage.setItem(SIZES_KEY, JSON.stringify(this.sizes()));
+    } catch {
+      /* storage unavailable */
+    }
+  }
+
+  protected resetSize(key: PaneKey): void {
+    this.setSize(key, DEFAULT_SIZES[key]);
+  }
+
+  /** Drag of a splitter: the right column width follows the pointer, top pane heights are a % of their column. */
+  protected startDrag(event: PointerEvent, key: PaneKey): void {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const handle = event.target as HTMLElement;
+    const column = handle.parentElement!;
+    const layout = this.layout().nativeElement;
+    handle.setPointerCapture(event.pointerId);
+    this.dragging.set(true);
+    const move = (e: PointerEvent) => {
+      if (key === 'rightW') {
+        const rect = layout.getBoundingClientRect();
+        this.setSize(key, rect.right - 12 - e.clientX - 5);
+      } else {
+        const rect = column.getBoundingClientRect();
+        this.setSize(key, ((e.clientY - rect.top) / rect.height) * 100);
+      }
+    };
+    const end = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+      this.dragging.set(false);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
+
+  /** Keyboard resizing of a focused splitter (arrows, Shift = bigger step, Home = default). */
+  protected keyResize(event: KeyboardEvent, key: PaneKey): void {
+    const step = (key === 'rightW' ? 20 : 2) * (event.shiftKey ? 5 : 1);
+    const cur = this.sizes()[key];
+    const delta: Record<string, number> =
+      key === 'rightW' ? { ArrowLeft: step, ArrowRight: -step } : { ArrowUp: -step, ArrowDown: step };
+    if (event.key in delta) this.setSize(key, cur + delta[event.key]);
+    else if (event.key === 'Home') this.resetSize(key);
+    else return;
+    event.preventDefault();
+    event.stopPropagation();
   }
 
   /* ------------------------------------------------------------ simulation */
