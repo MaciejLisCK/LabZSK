@@ -136,6 +136,19 @@ const BULBS = Array.from({ length: 24 }, (_, i) => ({
   delay: `${(i % 7) * -0.35}s`,
 }));
 
+/** Baubles on the Christmas tree (coordinates relative to the trunk axis). */
+const ORNAMENTS = [
+  { x: -14, y: 400 },
+  { x: 16, y: 396 },
+  { x: -30, y: 432 },
+  { x: 6, y: 438 },
+  { x: 36, y: 426 },
+  { x: -50, y: 460 },
+  { x: -16, y: 466 },
+  { x: 22, y: 464 },
+  { x: 54, y: 454 },
+].map((o, i) => ({ ...o, color: BULB_COLORS[i % BULB_COLORS.length], delay: `${(i % 5) * -0.5}s` }));
+
 /** Snowflakes of the Christmas skin. */
 const FLAKES = (() => {
   const r = rng(2412);
@@ -170,6 +183,7 @@ export class Schematic {
   protected readonly xmas = computed(() => this.svc.skin() === 'xmas');
   protected readonly bulbs = BULBS;
   protected readonly flakes = FLAKES;
+  protected readonly ornaments = ORNAMENTS;
   private lastFocused = '';
   private dragValue: number | null = null;
 

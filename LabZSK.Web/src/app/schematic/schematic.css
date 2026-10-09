@@ -97,6 +97,66 @@
   }
 }
 
+.tree .crown {
+  fill: rgb(28 120 62);
+  stroke: rgb(16 80 40);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.tree .sway {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: sway 6s ease-in-out infinite;
+}
+.tree .trunk {
+  fill: rgb(110 70 40);
+}
+.tree .garland {
+  fill: none;
+  stroke: rgb(255 214 92);
+  stroke-width: 2;
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
+  animation: candy 2s linear infinite;
+}
+.tree .ornament {
+  stroke: rgb(255 255 255 / 0.6);
+  stroke-width: 1;
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+.tree .star {
+  fill: rgb(255 214 92);
+  stroke: rgb(255 240 180);
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: shine 3s ease-in-out infinite;
+}
+.tree .ribbon {
+  stroke: rgb(255 214 92);
+  stroke-width: 3;
+}
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-1deg);
+  }
+  50% {
+    transform: rotate(1deg);
+  }
+}
+@keyframes shine {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: drop-shadow(0 0 3px rgb(255 214 92 / 0.6));
+  }
+  50% {
+    transform: scale(1.15) rotate(8deg);
+    filter: drop-shadow(0 0 9px rgb(255 214 92));
+  }
+}
+
 .snow {
   position: absolute;
   inset: 0;
@@ -124,7 +184,8 @@
 @media (prefers-reduced-motion: reduce) {
   .stripe,
   .bulb,
-  .flake {
+  .flake,
+  .tree * {
     animation: none;
   }
   .flake {
