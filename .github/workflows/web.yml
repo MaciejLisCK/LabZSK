@@ -5,6 +5,14 @@ on:
     paths: ['LabZSK.Web/**', '.github/workflows/web.yml']
   pull_request:
     paths: ['LabZSK.Web/**', '.github/workflows/web.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -21,8 +29,23 @@ jobs:
           cache-dependency-path: LabZSK.Web/package-lock.json
       - run: npm ci
       - run: npx ng test --watch=false
-      - run: npx ng build
-      - uses: actions/upload-artifact@v4
+      # GitHub Pages serves the site under https://<owner>.github.io/<repo>/
+      - run: npx ng build --base-href "/${{ github.event.repository.name }}/"
+      - uses: actions/upload-pages-artifact@v3
         with:
-          name: labzsk-web
           path: LabZSK.Web/dist/labzsk-web/browser
+
+  deploy:
+    # Publishes only from the default branch (master) – PR runs only build and test.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
