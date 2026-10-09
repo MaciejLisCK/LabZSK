@@ -1,0 +1,28 @@
+name: LabZSK Web
+
+on:
+  push:
+    paths: ['LabZSK.Web/**', '.github/workflows/web.yml']
+  pull_request:
+    paths: ['LabZSK.Web/**', '.github/workflows/web.yml']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: LabZSK.Web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: LabZSK.Web/package-lock.json
+      - run: npm ci
+      - run: npx ng test --watch=false
+      - run: npx ng build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: labzsk-web
+          path: LabZSK.Web/dist/labzsk-web/browser

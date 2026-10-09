@@ -1,0 +1,40 @@
+@let sim = svc.at(svc.version());
+@let cur = sim.pmCursor;
+@let raps = sim.regs.RAPS.value;
+<div class="scroll">
+  <table aria-label="Pamięć mikroprogramu">
+    <thead>
+      <tr>
+        @for (c of columns; track $index) {
+          <th scope="col">{{ c }}</th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (r of sim.pm; track $index; let i = $index) {
+        <tr [attr.data-row]="i" [class.current]="(cur ? cur.row : raps) === i">
+          <th scope="row">
+            @if ((cur ? cur.row : raps) === i) {
+              <span class="marker" aria-label="RAPS">▶</span>
+            }
+            {{ i }}
+          </th>
+          @for (c of colIdx; track c) {
+            <td
+              [attr.data-cell]="i + '-' + c"
+              [class.sel]="selected().row === i && selected().col === c"
+              [class.exec]="cur?.row === i && cur?.col === c"
+              [attr.tabindex]="selected().row === i && selected().col === c ? 0 : -1"
+              [title]="r[c] ? r[c] + ' – ' + describe(r[c]) : ''"
+              (click)="select(i, c)"
+              (dblclick)="open(i, c)"
+              (keydown)="onKey($event)"
+            >
+              {{ r[c] }}
+            </td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

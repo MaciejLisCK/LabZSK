@@ -4,3 +4,8 @@
 [![License](https://img.shields.io/github/license/Konrad-Ziarko/LabZSK.svg)](LICENSE)  
 
 LabZSK version 1.2.3.0
+
+
+## Wersja webowa
+
+W katalogu [`LabZSK.Web`](LabZSK.Web/README.md) jest port symulatora do przeglądarki (Angular + TypeScript). Pliki `.pm`, `.po` i `.log` są zgodne z wersją desktopową.

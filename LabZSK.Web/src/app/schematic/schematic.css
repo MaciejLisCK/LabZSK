@@ -1,0 +1,174 @@
+:host {
+  display: block;
+  container-type: inline-size;
+}
+
+.board {
+  --board-bg: var(--surface-2);
+  --board-bus: #9fb3c8;
+  --board-text: var(--text);
+  position: relative;
+  aspect-ratio: 1000 / 520;
+  background: var(--board-bg);
+  border-radius: 8px;
+  overflow: hidden;
+  user-select: none;
+}
+/* Original LabZSK skins (Drawings.drawBackground) */
+.board[data-skin='green'] {
+  --board-bg: rgb(27 96 51);
+  --board-bus: rgb(133 198 72);
+  --board-text: rgb(249 239 66);
+}
+.board[data-skin='blue'] {
+  --board-bg: rgb(31 18 158);
+  --board-bus: rgb(2 112 223);
+  --board-text: rgb(249 239 66);
+}
+.board[data-skin='red'] {
+  --board-bg: rgb(177 1 5);
+  --board-bus: rgb(254 65 69);
+  --board-text: rgb(5 254 177);
+}
+.board[data-skin='grey'] {
+  --board-bg: rgb(5 5 5);
+  --board-bus: rgb(120 120 120);
+  --board-text: rgb(249 239 245);
+}
+
+.board.edit {
+  outline: 3px dashed var(--accent);
+  outline-offset: -3px;
+}
+
+svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.bus {
+  fill: none;
+  stroke: var(--board-bus);
+  stroke-width: 10;
+  stroke-linejoin: bevel;
+}
+.bus.thin {
+  stroke-width: 5;
+}
+.alu {
+  fill: var(--board-bus);
+}
+
+.reg {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4em;
+  padding: 0 0.45em;
+  box-sizing: border-box;
+  background: var(--reg-bg);
+  color: var(--reg-text);
+  border: 1px solid var(--reg-border);
+  border-radius: 4px;
+  font: 500 clamp(9px, 1.5cqw, 17px) / 1 var(--mono);
+  cursor: grab;
+}
+.reg .dec {
+  opacity: 0.7;
+  font-size: 0.85em;
+}
+.reg.bus-reg {
+  background: var(--reg-bus-bg);
+}
+.reg.raps-reg,
+.reg.rbps {
+  background: var(--reg-ps-bg);
+}
+.reg.rbps {
+  justify-content: center;
+  cursor: default;
+}
+
+.label {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 2px);
+  font: 600 clamp(9px, 1.35cqw, 15px) / 1 var(--sans);
+  color: var(--board-text);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.reg.editable {
+  background: var(--input-bg);
+  border: 2px solid var(--accent);
+}
+.reg.check {
+  background: var(--check-bg);
+  color: var(--check-text);
+  border: 3px dashed var(--check-border);
+  box-shadow:
+    0 0 0 3px var(--board-bg),
+    0 0 0 6px var(--check-bg);
+}
+.reg.target {
+  border: 3px dashed var(--check-border);
+}
+
+.reg input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+  padding: 0;
+}
+.reg input::placeholder {
+  color: inherit;
+  opacity: 0.45;
+}
+
+.badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.3em;
+  height: 1.3em;
+  border-radius: 50%;
+  background: var(--check-text);
+  color: var(--check-bg);
+  font-weight: 700;
+  font-size: 0.85em;
+}
+
+.flag {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--reg-border);
+  border-radius: 4px;
+  background: var(--reg-bg);
+  color: var(--reg-text);
+  font: 600 clamp(9px, 1.5cqw, 17px) / 1 var(--mono);
+}
+.flag.on {
+  font-weight: 800;
+  text-decoration: underline;
+}
+.flag:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.flag.editable {
+  border: 2px solid var(--accent);
+  cursor: pointer;
+}
+.flag .label {
+  left: 50%;
+  transform: translateX(-50%);
+}
