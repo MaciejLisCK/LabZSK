@@ -1,0 +1,37 @@
+@let sim = svc.at(svc.version());
+<div class="scroll">
+  <table aria-label="Pamięć operacyjna">
+    <thead>
+      <tr>
+        <th scope="col">Adres</th>
+        <th scope="col">Zawartość</th>
+        <th scope="col">Hex</th>
+        <th scope="col">Typ</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (cell of sim.pao; track $index; let i = $index) {
+        <tr
+          [attr.data-row]="i"
+          [class.sel]="selected() === i"
+          [class.sim]="sim.paoCursor === i"
+          [attr.tabindex]="selected() === i ? 0 : -1"
+          (click)="selected.set(i)"
+          (dblclick)="open(i)"
+          (keydown)="onKey($event)"
+        >
+          <th scope="row">
+            @if (sim.paoCursor === i) {
+              <span aria-label="RAP">▶</span>
+            }
+            {{ i }}
+          </th>
+          <td class="bin">{{ bin(cell) }}</td>
+          <td>{{ hex(cell) }}</td>
+          <td class="kind">{{ kind(i) }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
+<pre class="desc" aria-live="polite">{{ description() }}</pre>

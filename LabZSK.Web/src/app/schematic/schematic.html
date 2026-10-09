@@ -1,0 +1,76 @@
+@let sim = svc.at(svc.version());
+<div class="board" [attr.data-skin]="svc.skin()" [class.edit]="sim.inEditMode">
+  <svg [attr.viewBox]="'0 0 ' + W + ' ' + H" preserveAspectRatio="none" aria-hidden="true">
+    @for (d of paths().fill; track $index) {
+      <path [attr.d]="d" class="alu" />
+    }
+    @for (d of paths().thick; track $index) {
+      <path [attr.d]="d" class="bus" />
+    }
+    @for (d of paths().thin; track $index) {
+      <path [attr.d]="d" class="bus thin" />
+    }
+  </svg>
+
+  @for (name of regNames(); track name) {
+    @let reg = sim.regs[name];
+    @let editable = isEditable(name);
+    <div
+      class="reg"
+      [class.check]="reg.needCheck"
+      [class.target]="sim.registerToCheck === name && !reg.needCheck"
+      [class.editable]="editable"
+      [class.bus-reg]="name === 'BUS'"
+      [class.raps-reg]="name === 'RAPS'"
+      [style]="boxStyle(name)"
+      draggable="true"
+      (dragstart)="onDragStart($event, name)"
+      (dragover)="onDragOver($event, name)"
+      (drop)="onDrop($event, name)"
+      [title]="name + ' = ' + reg.value + ' (' + display(name) + ')'"
+    >
+      <span class="label">{{ name }}</span>
+      @if (editable) {
+        <input
+          #inp
+          [attr.data-check]="reg.needCheck ? '' : null"
+          [attr.aria-label]="'Wartość rejestru ' + name"
+          [placeholder]="display(name) + ' ' + reg.value"
+          autocomplete="off"
+          spellcheck="false"
+          (input)="onInput(name, inp.value)"
+          (keydown.enter)="onEnter($event)"
+        />
+        @if (reg.needCheck) {
+          <span class="badge" aria-hidden="true">?</span>
+        }
+      } @else {
+        <span class="hex">{{ display(name) }}</span
+        ><span class="dec">{{ reg.value }}</span>
+      }
+    </div>
+  }
+
+  @if (!cea()) {
+    <div class="reg rbps" [style]="boxStyle('RBPS')" title="Rejestr bufora pamięci sterującej">
+      <span class="label">RBPS</span>
+      <span class="hex">{{ sim.rbps }}</span>
+    </div>
+  }
+
+  @for (f of flagNames; track f) {
+    <button
+      type="button"
+      class="flag"
+      [class.on]="sim.flags[f] === 1"
+      [class.editable]="sim.inEditMode"
+      [style]="flagStyle(f)"
+      [disabled]="!sim.inEditMode"
+      [attr.aria-label]="'Flaga ' + f + ' = ' + sim.flags[f]"
+      (click)="toggleFlag(f)"
+    >
+      <span class="label">{{ f }}</span
+      >{{ sim.flags[f] }}
+    </button>
+  }
+</div>
