@@ -46,6 +46,8 @@ operacji i treść logu odpowiadają wersji desktopowej.
   żadnej ochrony. Każda ich zmiana jest za to odnotowywana w logu.
 - Pominięto: połączenie z serwerem, ukryty rejestr uruchomień w strumieniu NTFS, sprawdzanie wersji i czasu NIST,
   wersję angielską interfejsu.
-- Doszło: przeciąganie wartości między rejestrami (było też w oryginale), obsługa klawiaturą, tryb ciemny, filtr
+- Doszło: zmiana rozmiaru paneli (separatory do przeciągania, strzałki na klawiaturze, dwuklik przywraca domyślny
+  rozmiar; zapamiętywane w przeglądarce), przeciąganie wartości między rejestrami (było też w oryginale), obsługa
+  klawiaturą, tryb ciemny, filtr
   wyróżnionych wierszy w podglądzie logu. Stany na schemacie i w logu są oznaczane także kształtem i ikoną, nie
   tylko kolorem.

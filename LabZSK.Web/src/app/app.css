@@ -113,28 +113,80 @@ nav {
   flex: 1;
   min-height: 0;
   display: grid;
-  gap: 10px;
   padding: 10px 12px 12px;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
-  grid-template-rows: auto minmax(220px, 1fr);
-  grid-template-areas: 'sim control' 'pm pao';
+  grid-template-columns: minmax(0, 1fr) 10px minmax(0, var(--right-w, 380px));
+}
+.layout.dragging {
+  user-select: none;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 .sim {
-  grid-area: sim;
-  min-width: 0;
+  flex: 0 0 var(--sim-h, 60%);
+  min-height: 0;
+  container-type: size;
+  display: grid;
+  place-items: start center;
+}
+.sim app-schematic {
+  width: min(100cqw, calc(100cqh * 1000 / 520));
 }
 .control {
-  grid-area: control;
+  flex: 0 0 var(--ctrl-h, 55%);
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-height: 0;
+  overflow: auto;
 }
-.pm {
-  grid-area: pm;
-}
+.pm,
 .pao {
-  grid-area: pao;
+  flex: 1 1 0;
+}
+.splitter {
+  flex: none;
+  position: relative;
+  touch-action: none;
+  border-radius: 4px;
+}
+.splitter.h {
+  height: 10px;
+  cursor: row-resize;
+}
+.splitter.v {
+  width: 10px;
+  cursor: col-resize;
+}
+.splitter::after {
+  content: '';
+  position: absolute;
+  border-radius: 2px;
+  background: var(--border);
+}
+.splitter.h::after {
+  left: calc(50% - 24px);
+  top: 3px;
+  width: 48px;
+  height: 4px;
+}
+.splitter.v::after {
+  top: calc(50% - 24px);
+  left: 3px;
+  width: 4px;
+  height: 48px;
+}
+.splitter:hover::after,
+.splitter:focus-visible::after,
+.dragging .splitter::after {
+  background: var(--accent);
+}
+.splitter:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 .pm,
 .pao {
@@ -273,12 +325,27 @@ h2 small {
     height: auto;
   }
   .layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto;
-    grid-template-areas: 'sim' 'control' 'pm' 'pao';
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .splitter {
+    display: none;
+  }
+  .sim {
+    flex: none;
+    container-type: normal;
+  }
+  .sim app-schematic {
+    width: 100%;
+  }
+  .control {
+    flex: none;
+    overflow: visible;
   }
   .pm,
   .pao {
+    flex: none;
     height: 420px;
   }
   .clock {

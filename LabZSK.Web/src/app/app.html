@@ -59,94 +59,135 @@
   </div>
 }
 
-<main class="layout">
-  <section class="sim" aria-label="Schemat procesora">
-    <app-schematic />
-  </section>
-
-  <section class="control" aria-label="Sterowanie">
-    <div class="status" [class.running]="sim.isRunning" [class.editing]="sim.inEditMode">
-      <span class="dot" aria-hidden="true"></span>
-      {{ sim.inEditMode ? 'Edycja rejestrów' : sim.isRunning ? (sim.autoRun ? 'Start (AUTO)' : 'Start') : 'Stop' }}
-      @if (sim.isRunning) {
-        · {{ sim.inMicroMode ? 'MIKRO' : 'MAKRO' }}
-      }
-    </div>
-
-    <div class="buttons">
-      @if (sim.inEditMode) {
-        <button type="button" class="primary big" (click)="toggleEdit()">Zakończ edycję</button>
-      } @else if (sim.waitingFor === 'ok') {
-        <button type="button" class="primary big" (click)="sim.confirm()">Zatwierdź <kbd>Enter</kbd></button>
-      } @else if (sim.waitingFor === 'tact') {
-        <button type="button" class="primary big" (click)="sim.nextTact()">Następny takt <kbd>Enter</kbd></button>
-      } @else if (!sim.isRunning) {
-        <button type="button" class="primary big" (click)="start(false)" [disabled]="!sim.canSimulate">MAKRO</button>
-        <button type="button" class="big" (click)="start(true)" [disabled]="!sim.canSimulate">MIKRO</button>
-      } @else if (sim.autoRun) {
-        <button type="button" class="big" (click)="sim.autoRunStopRequested = true">Zatrzymaj po cyklu</button>
-      }
-    </div>
-
-    @if (sim.waitingFor === 'ok') {
-      <p class="prompt" aria-live="polite">
-        @if (sim.registerToCheck && sim.regs[sim.registerToCheck].needCheck) {
-          Wpisz nową wartość rejestru <b>{{ sim.registerToCheck }}</b> (np. <code>12</code>, <code>-3</code>,
-          <code>1Fh</code>) i zatwierdź.
-        } @else {
-          Zatwierdź wykonanie mikrooperacji.
+<main
+  #layout
+  class="layout"
+  [class.dragging]="dragging()"
+  [style.--right-w.px]="sizes().rightW"
+  [style.--sim-h.%]="sizes().simH"
+  [style.--ctrl-h.%]="sizes().ctrlH"
+>
+  <div class="col left">
+    <section class="sim" aria-label="Schemat procesora">
+      <app-schematic />
+    </section>
+    <div
+      class="splitter h"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Zmień wysokość schematu i pamięci mikroprogramu (dwuklik przywraca)"
+      tabindex="0"
+      [attr.aria-valuenow]="sizes().simH"
+      (pointerdown)="startDrag($event, 'simH')"
+      (keydown)="keyResize($event, 'simH')"
+      (dblclick)="resetSize('simH')"
+    ></div>
+    <section class="pm" aria-label="Pamięć mikroprogramu">
+      <h2>Pamięć mikroprogramu <small>dwuklik / Enter – edycja komórki</small></h2>
+      <app-pm-table (edit)="pmDialog().open($event.row, $event.col)" />
+    </section>
+  </div>
+  <div
+    class="splitter v"
+    role="separator"
+    aria-orientation="vertical"
+    aria-label="Zmień szerokość prawej kolumny (dwuklik przywraca)"
+    tabindex="0"
+    [attr.aria-valuenow]="sizes().rightW"
+    (pointerdown)="startDrag($event, 'rightW')"
+    (keydown)="keyResize($event, 'rightW')"
+    (dblclick)="resetSize('rightW')"
+  ></div>
+  <div class="col right">
+    <section class="control" aria-label="Sterowanie">
+      <div class="status" [class.running]="sim.isRunning" [class.editing]="sim.inEditMode">
+        <span class="dot" aria-hidden="true"></span>
+        {{ sim.inEditMode ? 'Edycja rejestrów' : sim.isRunning ? (sim.autoRun ? 'Start (AUTO)' : 'Start') : 'Stop' }}
+        @if (sim.isRunning) {
+          · {{ sim.inMicroMode ? 'MIKRO' : 'MAKRO' }}
         }
-      </p>
-    }
+      </div>
 
-    <dl class="info">
-      <div [class.bad]="sim.mistakes >= sim.settings.thirdMark">
-        <dt>Ocena</dt>
-        <dd>{{ sim.mark }}</dd>
+      <div class="buttons">
+        @if (sim.inEditMode) {
+          <button type="button" class="primary big" (click)="toggleEdit()">Zakończ edycję</button>
+        } @else if (sim.waitingFor === 'ok') {
+          <button type="button" class="primary big" (click)="sim.confirm()">Zatwierdź <kbd>Enter</kbd></button>
+        } @else if (sim.waitingFor === 'tact') {
+          <button type="button" class="primary big" (click)="sim.nextTact()">Następny takt <kbd>Enter</kbd></button>
+        } @else if (!sim.isRunning) {
+          <button type="button" class="primary big" (click)="start(false)" [disabled]="!sim.canSimulate">MAKRO</button>
+          <button type="button" class="big" (click)="start(true)" [disabled]="!sim.canSimulate">MIKRO</button>
+        } @else if (sim.autoRun) {
+          <button type="button" class="big" (click)="sim.autoRunStopRequested = true">Zatrzymaj po cyklu</button>
+        }
       </div>
-      <div>
-        <dt>Błędy</dt>
-        <dd>{{ sim.mistakes }}</dd>
-      </div>
-      <div>
-        <dt>Takt</dt>
-        <dd>{{ sim.currentTact > 7 ? 7 : sim.currentTact }}</dd>
-      </div>
-      <div>
-        <dt>Cykl</dt>
-        <dd>{{ sim.cycle }}</dd>
-      </div>
-    </dl>
 
-    <ol class="minilog" aria-label="Wykonane mikrooperacje">
-      @for (e of sim.miniLog; track $index) {
-        <li>
-          <span class="tact">{{ e.tact }}</span
-          ><b>{{ e.mnemo }}</b
-          ><span>{{ e.description }}</span>
-        </li>
-      } @empty {
-        <li class="empty">{{ sim.isRunning ? '…' : 'Kliknij MAKRO (cały cykl) lub MIKRO (takt po takcie).' }}</li>
+      @if (sim.waitingFor === 'ok') {
+        <p class="prompt" aria-live="polite">
+          @if (sim.registerToCheck && sim.regs[sim.registerToCheck].needCheck) {
+            Wpisz nową wartość rejestru <b>{{ sim.registerToCheck }}</b> (np. <code>12</code>, <code>-3</code>,
+            <code>1Fh</code>) i zatwierdź.
+          } @else {
+            Zatwierdź wykonanie mikrooperacji.
+          }
+        </p>
       }
-    </ol>
 
-    <div class="small-actions">
-      <button type="button" (click)="showLog()" [disabled]="sim.log === null">Pokaż log</button>
-      <button type="button" (click)="toggleEdit()" [disabled]="sim.isRunning">
-        {{ sim.inEditMode ? 'Zakończ edycję' : 'Edytuj rejestry' }}
-      </button>
-    </div>
-  </section>
+      <dl class="info">
+        <div [class.bad]="sim.mistakes >= sim.settings.thirdMark">
+          <dt>Ocena</dt>
+          <dd>{{ sim.mark }}</dd>
+        </div>
+        <div>
+          <dt>Błędy</dt>
+          <dd>{{ sim.mistakes }}</dd>
+        </div>
+        <div>
+          <dt>Takt</dt>
+          <dd>{{ sim.currentTact > 7 ? 7 : sim.currentTact }}</dd>
+        </div>
+        <div>
+          <dt>Cykl</dt>
+          <dd>{{ sim.cycle }}</dd>
+        </div>
+      </dl>
 
-  <section class="pm" aria-label="Pamięć mikroprogramu">
-    <h2>Pamięć mikroprogramu <small>dwuklik / Enter – edycja komórki</small></h2>
-    <app-pm-table (edit)="pmDialog().open($event.row, $event.col)" />
-  </section>
+      <ol class="minilog" aria-label="Wykonane mikrooperacje">
+        @for (e of sim.miniLog; track $index) {
+          <li>
+            <span class="tact">{{ e.tact }}</span
+            ><b>{{ e.mnemo }}</b
+            ><span>{{ e.description }}</span>
+          </li>
+        } @empty {
+          <li class="empty">{{ sim.isRunning ? '…' : 'Kliknij MAKRO (cały cykl) lub MIKRO (takt po takcie).' }}</li>
+        }
+      </ol>
 
-  <section class="pao" aria-label="Pamięć operacyjna">
-    <h2>Pamięć operacyjna <small>dwuklik / Enter – edycja</small></h2>
-    <app-pao-table (edit)="memDialog().open($event)" />
-  </section>
+      <div class="small-actions">
+        <button type="button" (click)="showLog()" [disabled]="sim.log === null">Pokaż log</button>
+        <button type="button" (click)="toggleEdit()" [disabled]="sim.isRunning">
+          {{ sim.inEditMode ? 'Zakończ edycję' : 'Edytuj rejestry' }}
+        </button>
+      </div>
+    </section>
+    <div
+      class="splitter h"
+      role="separator"
+      aria-orientation="horizontal"
+      aria-label="Zmień wysokość panelu sterowania i pamięci operacyjnej (dwuklik przywraca)"
+      tabindex="0"
+      [attr.aria-valuenow]="sizes().ctrlH"
+      (pointerdown)="startDrag($event, 'ctrlH')"
+      (keydown)="keyResize($event, 'ctrlH')"
+      (dblclick)="resetSize('ctrlH')"
+    ></div>
+    <section class="pao" aria-label="Pamięć operacyjna">
+      <h2>Pamięć operacyjna <small>dwuklik / Enter – edycja</small></h2>
+      <app-pao-table (edit)="memDialog().open($event)" />
+    </section>
+  </div>
 </main>
 
 <input #file type="file" hidden (change)="fileChosen(file)" />
