@@ -172,3 +172,90 @@ svg {
   left: 50%;
   transform: translateX(-50%);
 }
+
+/* ---- data flow of the current micro-operation (e.g. OLR: LR → BUS) ----
+   Marked by line width, a moving dash pattern and text tags – never by colour alone. */
+.bus.active {
+  stroke-width: 18;
+}
+.flow-dash {
+  fill: none;
+  stroke: var(--board-text);
+  stroke-width: 5;
+  stroke-dasharray: 14 10;
+  stroke-linejoin: bevel;
+  animation: flow-march 0.8s linear infinite;
+}
+.alu.active {
+  stroke: var(--board-text);
+  stroke-width: 5;
+  stroke-dasharray: 14 10;
+  animation: flow-march 0.8s linear infinite;
+}
+@keyframes flow-march {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+.reg.flow-src,
+.reg.flow-dst {
+  font-weight: 800;
+  outline: 3px solid var(--board-text);
+  outline-offset: 2px;
+}
+.reg.flow-dst {
+  outline-style: dashed;
+  animation: flow-blink 1s steps(2, jump-none) infinite;
+}
+@keyframes flow-blink {
+  to {
+    outline-color: transparent;
+  }
+}
+.reg.flow-src .label,
+.reg.flow-dst .label,
+.role {
+  bottom: calc(100% + 6px);
+}
+/* RR, LR, RI hang right under the bus line – there is no room to lift the label. */
+.reg.under-bus .label,
+.reg.under-bus .role {
+  bottom: calc(100% + 2px);
+}
+.role {
+  position: absolute;
+  right: 0;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  background: var(--board-text);
+  color: var(--board-bg);
+  font: 700 clamp(8px, 1.1cqw, 13px) / 1 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.flow-caption {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0 0.5em;
+  box-sizing: border-box;
+  border: 2px solid var(--board-text);
+  border-radius: 4px;
+  background: var(--reg-bg);
+  color: var(--reg-text);
+  font: 800 clamp(9px, 1.5cqw, 17px) / 1 var(--mono);
+  white-space: nowrap;
+  overflow: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-dash,
+  .alu.active,
+  .reg.flow-dst {
+    animation: none;
+  }
+}

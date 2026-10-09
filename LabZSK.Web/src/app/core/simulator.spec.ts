@@ -77,6 +77,35 @@ describe('Simulator', () => {
     expect(sim.log).toContain('      C2 |  OPC : OP albo AOP+32 -> RAPS\n');
   });
 
+  it('describes the data flow of every transfer the student has to fill in', async () => {
+    const sim = newSim();
+    sim.pao[0] = { word: encodeSimple({ op: 8, x: 0, s: 0, i: 0, da: 5 }), type: CellType.Simple };
+    row(sim, 0, { S1: 'OLR', D1: 'IRAP', C1: 'RRC', D2: 'NSI', S3: 'ORBP', D3: 'IRR', C2: 'OPC' });
+    const flows: string[] = [];
+    const done = sim.start(false);
+    let finished = false;
+    done.then(() => (finished = true));
+    while (!finished) {
+      await flush();
+      if (sim.waitingFor !== 'ok') continue;
+      const f = sim.flow;
+      flows.push(f ? `${f.op}: ${f.from.join(',')} -> ${f.to}` : '-');
+      const name = sim.registerToCheck;
+      if (name !== '') sim.setRegisterInput(name, sim.regs[name].expected);
+      sim.confirm();
+      expect(sim.flow).toBeNull();
+    }
+    expect(flows).toEqual([
+      'OLR: LR -> BUS',
+      'IRAP: BUS -> RAP',
+      'RRC: PAO -> RBP',
+      'NSI: LR -> LR',
+      'ORBP: RBP -> BUS',
+      'IRR: BUS -> RR',
+      'OPC: RR -> RAPS',
+    ]);
+  });
+
   it('computes the effective address with CEA and stores it in RAE', async () => {
     const sim = newSim();
     sim.regs.RR.setValueAndExpected(encodeSimple({ op: 8, x: 0, s: 1, i: 0, da: 5 })); // relative to LR

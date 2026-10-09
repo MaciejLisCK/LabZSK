@@ -68,6 +68,24 @@ export interface SavedState {
   simStartedAt: string | null;
 }
 
+/**
+ * Data flow of the micro-operation the student is working on – shown on the schematic,
+ * e.g. OLR: LR → BUS. `from` holds register names or "PAO" (operating memory); empty means a constant.
+ */
+export interface Flow {
+  op: string;
+  from: readonly string[];
+  to: RegName;
+}
+
+/** Inputs of the ALU operation (tact 2). */
+function aluSources(op: string): RegName[] {
+  if (['CMX', 'NOTR', 'R', 'INCR', 'DECR'].includes(op)) return ['RALU'];
+  if (['CMA', 'NOTL', 'L', 'INCL', 'DECL'].includes(op)) return ['LALU'];
+  if (op === 'ONE' || op === 'ZERO') return [];
+  return ['LALU', 'RALU'];
+}
+
 export const APP_VERSION = '1.2.3.0-web';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -99,6 +117,8 @@ export class Simulator {
   ceaLayout = false;
   registerToCheck: RegName | '' = '';
   flagToCheck: FlagName | '' = '';
+  /** Transfer of the current micro-operation (null when nothing is being moved). */
+  flow: Flow | null = null;
   /** Currently executed PM cell (Grid_PM.CurrentCell). */
   pmCursor: { row: number; col: number } | null = null;
   /** PAO row selected by the simulation (RRC / CWC / IWC). */
@@ -381,13 +401,16 @@ export class Simulator {
       }
       this.registerToCheck = '';
     }
+    this.flow = null;
     if (this.flagToCheck !== '') {
       this.addTextToLog(`${this.flagToCheck.padStart(15, ' ')} = ${this.flags[this.flagToCheck]}\n`);
       this.flagToCheck = '';
     }
   }
 
-  private testAndSet(register: RegName, value: number): void {
+  /** `from` – sources of the value, used to highlight the transfer on the schematic. */
+  private testAndSet(register: RegName, value: number, from?: readonly string[]): void {
+    this.flow = from ? { op: this.microOpMnemo, from, to: register } : null;
     const reg = this.regs[register];
     reg.setExpected(value);
     reg.needCheck = true;
@@ -468,6 +491,7 @@ export class Simulator {
     this.inMicroMode = false;
     this.autoRun = null;
     this.pmCursor = null;
+    this.flow = null;
     this.changed();
   }
 
@@ -620,21 +644,21 @@ export class Simulator {
     if (c[1][1]) {
       this.setCursor(COL.S1);
       const m = (this.microOpMnemo = this.cell(COL.S1));
-      if (m === 'IXRE') this.testAndSet('LALU', r.RI.value);
-      else if (m === 'OLR') this.testAndSet('BUS', r.LR.value);
-      else if (m === 'ORR') this.testAndSet('BUS', r.RR.value);
-      else if (m === 'ORAE') this.testAndSet('BUS', r.RAE.value);
-      else if (m === 'IALU') this.testAndSet('LALU', r.A.value);
-      else if (m === 'OXE') this.testAndSet('RALU', r.X.value);
-      else if (m === 'OX') this.testAndSet('BUS', r.X.value);
+      if (m === 'IXRE') this.testAndSet('LALU', r.RI.value, ['RI']);
+      else if (m === 'OLR') this.testAndSet('BUS', r.LR.value, ['LR']);
+      else if (m === 'ORR') this.testAndSet('BUS', r.RR.value, ['RR']);
+      else if (m === 'ORAE') this.testAndSet('BUS', r.RAE.value, ['RAE']);
+      else if (m === 'IALU') this.testAndSet('LALU', r.A.value, ['A']);
+      else if (m === 'OXE') this.testAndSet('RALU', r.X.value, ['X']);
+      else if (m === 'OX') this.testAndSet('BUS', r.X.value, ['X']);
       c[1][1] = false;
       this.addToLogAndMiniLog('S1', m, microOpDescription(m));
     } else if (c[2][1]) {
       this.setCursor(COL.D1);
       const m = (this.microOpMnemo = this.cell(COL.D1));
-      if (m === 'ILK') this.testAndSet('LK', r.BUS.value);
-      else if (m === 'IRAP') this.testAndSet('RAP', r.BUS.value);
-      else if (m === 'OXE') this.testAndSet('RALU', r.X.value);
+      if (m === 'ILK') this.testAndSet('LK', r.BUS.value, ['BUS']);
+      else if (m === 'IRAP') this.testAndSet('RAP', r.BUS.value, ['BUS']);
+      else if (m === 'OXE') this.testAndSet('RALU', r.X.value, ['X']);
       c[2][1] = false;
       this.resetBus = true;
       this.addToLogAndMiniLog('D1', m, microOpDescription(m));
@@ -650,30 +674,30 @@ export class Simulator {
         A <<= 1;
         if (signBit) A |= 0x8000;
         else A &= 0x7fff;
-        this.testAndSet('A', s16(A));
+        this.testAndSet('A', s16(A), ['A']);
       } else if (m === 'ARA') {
         A >>= 1;
         if (signBit) A |= 0x8000;
-        this.testAndSet('A', s16(A));
+        this.testAndSet('A', s16(A), ['A']);
       } else if (m === 'LRQ') {
         A = (A & 0xffff) >> 1;
-        this.testAndSet('A', s16(A));
+        this.testAndSet('A', s16(A), ['A']);
         this.changed();
         await this.validateRegister();
-        if (lastBit) this.testAndSet('MQ', s16(((r.MQ.value & 0xffff) >> 1) | 0x8000));
-        else this.testAndSet('MQ', s16((r.MQ.value & 0xffff) >> 1));
+        if (lastBit) this.testAndSet('MQ', s16(((r.MQ.value & 0xffff) >> 1) | 0x8000), ['A', 'MQ']);
+        else this.testAndSet('MQ', s16((r.MQ.value & 0xffff) >> 1), ['A', 'MQ']);
       } else if (m === 'LLQ') {
         A = (A & 0xffff) << 1;
-        if ((r.MQ.value & 0x8000) === 0x8000) this.testAndSet('A', s16((A & 0xffff) + 1));
-        else this.testAndSet('A', s16(A & 0xffff));
+        if ((r.MQ.value & 0x8000) === 0x8000) this.testAndSet('A', s16((A & 0xffff) + 1), ['A', 'MQ']);
+        else this.testAndSet('A', s16(A & 0xffff), ['A', 'MQ']);
         this.changed();
         await this.validateRegister();
-        this.testAndSet('MQ', s16(r.MQ.value << 1));
-      } else if (m === 'LLA') this.testAndSet('A', s16((A & 0xffff) << 1));
-      else if (m === 'LRA') this.testAndSet('A', s16((A & 0xffff) >> 1));
+        this.testAndSet('MQ', s16(r.MQ.value << 1), ['MQ']);
+      } else if (m === 'LLA') this.testAndSet('A', s16((A & 0xffff) << 1), ['A']);
+      else if (m === 'LRA') this.testAndSet('A', s16((A & 0xffff) >> 1), ['A']);
       else if (m === 'LCA') {
-        if (signBit) this.testAndSet('A', s16(((A & 0xffff) << 1) + 1));
-        else this.testAndSet('A', s16((A & 0xffff) << 1));
+        if (signBit) this.testAndSet('A', s16(((A & 0xffff) << 1) + 1), ['A']);
+        else this.testAndSet('A', s16((A & 0xffff) << 1), ['A']);
       }
       c[4][1] = false;
     } else if (c[7][1]) {
@@ -681,16 +705,16 @@ export class Simulator {
       const m = (this.microOpMnemo = this.cell(COL.C1));
       if (m === 'RRC') {
         const rap = r.RAP.value;
-        if (rap > 255) this.testAndSet('RBP', 0);
+        if (rap > 255) this.testAndSet('RBP', 0, ['PAO']);
         else {
           this.paoCursor = rap;
           const cell = this.pao[rap];
-          this.testAndSet('RBP', cell.type === CellType.Empty ? 0 : cell.word);
+          this.testAndSet('RBP', cell.type === CellType.Empty ? 0 : cell.word, ['PAO']);
           this.flags.MAV = 0;
           this.flags.IA = 1;
         }
-      } else if (m === 'MUL') this.testAndSet('LK', 16);
-      else if (m === 'DIV') this.testAndSet('LK', 15);
+      } else if (m === 'MUL') this.testAndSet('LK', 16, []);
+      else if (m === 'DIV') this.testAndSet('LK', 15, []);
       c[7][1] = false;
       this.addToLogAndMiniLog('C1', m, microOpDescription(m));
     } else if (c[8][1]) {
@@ -701,6 +725,7 @@ export class Simulator {
         this.switchLayOut();
         let leftValue = 0;
         let rightValue = 0;
+        let rightFrom: RegName[] = [];
         const tmp = bin16(r.RR.value);
         if (tmp.substring(0, 5) !== '00000') {
           const xsi = tmp.substring(5, 8);
@@ -711,20 +736,22 @@ export class Simulator {
             setXro = 1;
           } else if (xsi === '010' || xsi === '011') {
             rightValue = r.LR.value;
+            rightFrom = ['LR'];
             leftValue = da;
           } else if (xsi === '100' || xsi === '101') {
             rightValue = r.RI.value;
+            rightFrom = ['RI'];
             leftValue = da;
           } else leftValue = da;
         } else leftValue = Number.parseInt(tmp.substring(9, 16), 2);
         this.addToLogAndMiniLog('C2', m, microOpDescription(m));
-        this.testAndSet('L', leftValue);
+        this.testAndSet('L', leftValue, ['RR']);
         this.changed();
         await this.validateRegister();
-        this.testAndSet('R', rightValue);
+        this.testAndSet('R', rightValue, rightFrom);
         this.changed();
         await this.validateRegister();
-        this.testAndSet('SUMA', (leftValue + rightValue) & 255);
+        this.testAndSet('SUMA', (leftValue + rightValue) & 255, ['L', 'R']);
         if (leftValue + rightValue > 255 || leftValue + rightValue < 0) setXro = 1;
       }
       c[8][1] = false;
@@ -754,27 +781,28 @@ export class Simulator {
       const L = r.LALU.value;
       const R = r.RALU.value;
       this.isOverflow = false;
+      const from = aluSources(m);
       const withOverflow = (v: number) => {
         this.isOverflow = overflows16(v);
-        this.testAndSet('ALU', s16(v));
+        this.testAndSet('ALU', s16(v), from);
       };
       if (m === 'ADD') withOverflow(L + R);
       else if (m === 'SUB') withOverflow(L - R);
-      else if (m === 'CMX') this.testAndSet('ALU', s16(1 + ~R));
-      else if (m === 'CMA') this.testAndSet('ALU', s16(1 + ~L));
-      else if (m === 'OR') this.testAndSet('ALU', s16(L | R));
-      else if (m === 'AND') this.testAndSet('ALU', s16(L & R));
-      else if (m === 'EOR') this.testAndSet('ALU', s16(L ^ R));
-      else if (m === 'NOTL') this.testAndSet('ALU', s16(~L));
-      else if (m === 'NOTR') this.testAndSet('ALU', s16(~R));
-      else if (m === 'L') this.testAndSet('ALU', L);
-      else if (m === 'R') this.testAndSet('ALU', R);
+      else if (m === 'CMX') this.testAndSet('ALU', s16(1 + ~R), from);
+      else if (m === 'CMA') this.testAndSet('ALU', s16(1 + ~L), from);
+      else if (m === 'OR') this.testAndSet('ALU', s16(L | R), from);
+      else if (m === 'AND') this.testAndSet('ALU', s16(L & R), from);
+      else if (m === 'EOR') this.testAndSet('ALU', s16(L ^ R), from);
+      else if (m === 'NOTL') this.testAndSet('ALU', s16(~L), from);
+      else if (m === 'NOTR') this.testAndSet('ALU', s16(~R), from);
+      else if (m === 'L') this.testAndSet('ALU', L, from);
+      else if (m === 'R') this.testAndSet('ALU', R, from);
       else if (m === 'INCL') withOverflow(L + 1);
       else if (m === 'INCR') withOverflow(R + 1);
       else if (m === 'DECL') withOverflow(L - 1);
       else if (m === 'DECR') withOverflow(R - 1);
-      else if (m === 'ONE') this.testAndSet('ALU', 1);
-      else if (m === 'ZERO') this.testAndSet('ALU', 0);
+      else if (m === 'ONE') this.testAndSet('ALU', 1, from);
+      else if (m === 'ZERO') this.testAndSet('ALU', 0, from);
       this.cells[10][2] = false;
       this.addToLogAndMiniLog('ALU', m, microOpDescription(m));
     }
@@ -805,32 +833,32 @@ export class Simulator {
     if (c[3][6]) {
       this.setCursor(COL.S2);
       const m = (this.microOpMnemo = this.cell(COL.S2));
-      if (m === 'IXRE') this.testAndSet('LALU', r.RI.value);
-      else if (m === 'ORR') this.testAndSet('BUS', r.RR.value);
-      else if (m === 'ORI') this.testAndSet('BUS', r.RI.value);
-      else if (m === 'OBE') this.testAndSet('BUS', r.ALU.value);
-      else if (m === 'IRAE') this.testAndSet('RAE', r.SUMA.value);
-      else if (m === 'ORAE') this.testAndSet('BUS', r.RAE.value);
-      else if (m === 'IALU') this.testAndSet('LALU', r.A.value);
-      else if (m === 'OXE') this.testAndSet('RALU', r.X.value);
-      else if (m === 'OX') this.testAndSet('BUS', r.X.value);
-      else if (m === 'OA') this.testAndSet('BUS', r.A.value);
-      else if (m === 'OMQ') this.testAndSet('BUS', r.MQ.value);
+      if (m === 'IXRE') this.testAndSet('LALU', r.RI.value, ['RI']);
+      else if (m === 'ORR') this.testAndSet('BUS', r.RR.value, ['RR']);
+      else if (m === 'ORI') this.testAndSet('BUS', r.RI.value, ['RI']);
+      else if (m === 'OBE') this.testAndSet('BUS', r.ALU.value, ['ALU']);
+      else if (m === 'IRAE') this.testAndSet('RAE', r.SUMA.value, ['SUMA']);
+      else if (m === 'ORAE') this.testAndSet('BUS', r.RAE.value, ['RAE']);
+      else if (m === 'IALU') this.testAndSet('LALU', r.A.value, ['A']);
+      else if (m === 'OXE') this.testAndSet('RALU', r.X.value, ['X']);
+      else if (m === 'OX') this.testAndSet('BUS', r.X.value, ['X']);
+      else if (m === 'OA') this.testAndSet('BUS', r.A.value, ['A']);
+      else if (m === 'OMQ') this.testAndSet('BUS', r.MQ.value, ['MQ']);
       c[3][6] = false;
       this.addToLogAndMiniLog('S2', m, microOpDescription(m));
     } else if (c[4][6]) {
       this.setCursor(COL.D2);
       const m = (this.microOpMnemo = this.cell(COL.D2));
-      if (m === 'ORI') this.testAndSet('BUS', r.RI.value);
-      else if (m === 'OXE') this.testAndSet('RALU', r.X.value);
-      else if (m === 'ILR') this.testAndSet('LR', r.BUS.value);
-      else if (m === 'IRI') this.testAndSet('RI', r.BUS.value);
-      else if (m === 'IX') this.testAndSet('X', r.BUS.value);
-      else if (m === 'IBE') this.testAndSet('RALU', r.BUS.value);
-      else if (m === 'IBI') this.testAndSet('RAE', r.BUS.value);
-      else if (m === 'IA') this.testAndSet('A', r.BUS.value);
-      else if (m === 'IMQ') this.testAndSet('MQ', r.BUS.value);
-      else if (m === 'NSI') this.testAndSet('LR', s16(r.LR.value + 1));
+      if (m === 'ORI') this.testAndSet('BUS', r.RI.value, ['RI']);
+      else if (m === 'OXE') this.testAndSet('RALU', r.X.value, ['X']);
+      else if (m === 'ILR') this.testAndSet('LR', r.BUS.value, ['BUS']);
+      else if (m === 'IRI') this.testAndSet('RI', r.BUS.value, ['BUS']);
+      else if (m === 'IX') this.testAndSet('X', r.BUS.value, ['BUS']);
+      else if (m === 'IBE') this.testAndSet('RALU', r.BUS.value, ['BUS']);
+      else if (m === 'IBI') this.testAndSet('RAE', r.BUS.value, ['BUS']);
+      else if (m === 'IA') this.testAndSet('A', r.BUS.value, ['BUS']);
+      else if (m === 'IMQ') this.testAndSet('MQ', r.BUS.value, ['BUS']);
+      else if (m === 'NSI') this.testAndSet('LR', s16(r.LR.value + 1), ['LR']);
       else if (m === 'IAS') this.setSignFrom(r.A.value);
       else if (m === 'SGN') this.setSignFrom(r.X.value);
       c[4][6] = false;
@@ -839,17 +867,17 @@ export class Simulator {
     } else if (c[8][6]) {
       this.setCursor(COL.C2);
       const m = (this.microOpMnemo = this.cell(COL.C2));
-      if (m === 'DLK') this.testAndSet('LK', s16(r.LK.value - 1));
-      else if (m === 'DRI') this.testAndSet('RI', s16(r.RI.value - 1));
+      if (m === 'DLK') this.testAndSet('LK', s16(r.LK.value - 1), ['LK']);
+      else if (m === 'DRI') this.testAndSet('RI', s16(r.RI.value - 1), ['RI']);
       else if (m === 'SOFF') this.setFlag('OFF', 1);
       else if (m === 'ROFF') this.setFlag('OFF', 0);
       else if (m === 'SXRO') this.setFlag('XRO', 1);
       else if (m === 'RXRO') this.setFlag('XRO', 0);
       else if (m === 'AQ15') {
-        if ((r.A.value & 0x8000) === 0x8000) this.testAndSet('MQ', s16(r.MQ.value & 0xfffe));
-        else this.testAndSet('MQ', s16(r.MQ.value | 0x0001));
-      } else if (m === 'RA') this.testAndSet('A', 0);
-      else if (m === 'RMQ') this.testAndSet('MQ', 0);
+        if ((r.A.value & 0x8000) === 0x8000) this.testAndSet('MQ', s16(r.MQ.value & 0xfffe), ['A', 'MQ']);
+        else this.testAndSet('MQ', s16(r.MQ.value | 0x0001), ['A', 'MQ']);
+      } else if (m === 'RA') this.testAndSet('A', 0, []);
+      else if (m === 'RMQ') this.testAndSet('MQ', 0, []);
       c[8][6] = false;
       this.addToLogAndMiniLog('C2', m, microOpDescription(m));
     }
@@ -874,31 +902,31 @@ export class Simulator {
     if (c[5][7]) {
       this.setCursor(COL.S3);
       const m = (this.microOpMnemo = this.cell(COL.S3));
-      if (m === 'ORI') this.testAndSet('BUS', r.RI.value);
-      else if (m === 'ORAE') this.testAndSet('BUS', r.RAE.value);
-      else if (m === 'OXE') this.testAndSet('RALU', r.X.value);
-      else if (m === 'OA') this.testAndSet('BUS', r.A.value);
-      else if (m === 'OMQ') this.testAndSet('BUS', r.MQ.value);
-      else if (m === 'OLR') this.testAndSet('BUS', r.LR.value);
-      else if (m === 'ORBP') this.testAndSet('BUS', r.RBP.value);
+      if (m === 'ORI') this.testAndSet('BUS', r.RI.value, ['RI']);
+      else if (m === 'ORAE') this.testAndSet('BUS', r.RAE.value, ['RAE']);
+      else if (m === 'OXE') this.testAndSet('RALU', r.X.value, ['X']);
+      else if (m === 'OA') this.testAndSet('BUS', r.A.value, ['A']);
+      else if (m === 'OMQ') this.testAndSet('BUS', r.MQ.value, ['MQ']);
+      else if (m === 'OLR') this.testAndSet('BUS', r.LR.value, ['LR']);
+      else if (m === 'ORBP') this.testAndSet('BUS', r.RBP.value, ['RBP']);
       c[5][7] = false;
       this.addToLogAndMiniLog('S3', m, microOpDescription(m));
     } else if (c[6][7]) {
       this.setCursor(COL.D3);
       const m = (this.microOpMnemo = this.cell(COL.D3));
-      if (m === 'OXE') this.testAndSet('RALU', r.X.value);
-      else if (m === 'ILR') this.testAndSet('LR', r.BUS.value);
-      else if (m === 'IX') this.testAndSet('X', r.BUS.value);
-      else if (m === 'IBE') this.testAndSet('RALU', r.BUS.value);
-      else if (m === 'IBI') this.testAndSet('RAE', r.BUS.value);
-      else if (m === 'IA') this.testAndSet('A', r.BUS.value);
-      else if (m === 'IMQ') this.testAndSet('MQ', r.BUS.value);
-      else if (m === 'NSI') this.testAndSet('LR', s16(r.LR.value + 1));
+      if (m === 'OXE') this.testAndSet('RALU', r.X.value, ['X']);
+      else if (m === 'ILR') this.testAndSet('LR', r.BUS.value, ['BUS']);
+      else if (m === 'IX') this.testAndSet('X', r.BUS.value, ['BUS']);
+      else if (m === 'IBE') this.testAndSet('RALU', r.BUS.value, ['BUS']);
+      else if (m === 'IBI') this.testAndSet('RAE', r.BUS.value, ['BUS']);
+      else if (m === 'IA') this.testAndSet('A', r.BUS.value, ['BUS']);
+      else if (m === 'IMQ') this.testAndSet('MQ', r.BUS.value, ['BUS']);
+      else if (m === 'NSI') this.testAndSet('LR', s16(r.LR.value + 1), ['LR']);
       else if (m === 'IAS') this.setSignFrom(r.A.value);
       else if (m === 'SGN') this.setSignFrom(r.X.value);
-      else if (m === 'IRI') this.testAndSet('RI', r.BUS.value);
-      else if (m === 'IRR') this.testAndSet('RR', r.BUS.value);
-      else if (m === 'IRBP' || m === 'SRBP') this.testAndSet('RBP', r.BUS.value);
+      else if (m === 'IRI') this.testAndSet('RI', r.BUS.value, ['BUS']);
+      else if (m === 'IRR') this.testAndSet('RR', r.BUS.value, ['BUS']);
+      else if (m === 'IRBP' || m === 'SRBP') this.testAndSet('RBP', r.BUS.value, ['BUS']);
       c[6][7] = false;
       this.resetBus = true;
       this.addToLogAndMiniLog('D3', m, microOpDescription(m));
@@ -906,7 +934,7 @@ export class Simulator {
       let newCell: { addr: number; cell: MemCell } | null = null;
       this.setCursor(COL.C1);
       const m = (this.microOpMnemo = this.cell(COL.C1));
-      if (m === 'END') this.testAndSet('RAPS', 0);
+      if (m === 'END') this.testAndSet('RAPS', 0, []);
       else if (m === 'CWC') {
         this.flags.MAV = 0;
         this.flags.IA = 1;
@@ -932,7 +960,7 @@ export class Simulator {
       if (m === 'RINT') this.setFlag('INT', 0);
       else if (m === 'ENI') this.setFlag('INT', 1);
       else if (m === 'OPC') {
-        this.testAndSet('RAPS', this.getRRRegisterOP()[0]);
+        this.testAndSet('RAPS', this.getRRRegisterOP()[0], ['RR']);
         this.currentTact = 8;
       }
       c[8][7] = false;

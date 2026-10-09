@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject } from '@angular/core';
 import { hex16, parseRegisterInput } from '../core/int16';
 import { FLAG_NAMES, FlagName, NON_EDITABLE, RegName } from '../core/registers';
+import { Flow } from '../core/simulator';
 import { SimService } from '../sim.service';
 
 const W = 1000;
@@ -86,35 +87,78 @@ const cx = (b: Box) => b.x + BW / 2;
 const cy = (b: Box) => b.y + BH / 2;
 const P = REG_POS;
 
-/** Bus lines – port of Drawings.drawSkin. */
-function busPaths(cea: boolean): { thick: string[]; thin: string[]; fill: string[] } {
+type Seg = { key: string; d: string };
+
+/** Bus lines – port of Drawings.drawSkin. Every segment has a key used to highlight the active transfer. */
+function busPaths(cea: boolean): { thick: Seg[]; thin: Seg[]; fill: Seg[] } {
   const bus = cy(P.BUS);
   const top = 8;
   const left = 25;
-  const thick = [
-    `M ${cx(P.BUS)} ${bus} H ${W}`,
-    ...(['RR', 'LR', 'RI'] as const).map((r) => `M ${cx(P[r])} ${bus} V ${cy(P[r])}`),
-    `M ${left} ${H} V ${top} H ${W}`,
-    ...(['LK', 'A', 'MQ', 'X'] as const).map((r) => `M ${cx(P[r])} ${top} V ${cy(P[r])}`),
-    ...(['RAP', 'RBP', 'BUS'] as const).map((r) => `M ${left} ${cy(P[r])} H ${P[r].x + 10}`),
-    `M ${cx(P.A)} ${cy(P.A)} V ${cy(P.LALU)}`,
-    `M ${cx(P.ALU)} ${cy(P.ALU)} V ${bus}`,
+  const thick: Seg[] = [
+    { key: 'trunk:bus', d: `M ${cx(P.BUS)} ${bus} H ${W}` },
+    ...(['RR', 'LR', 'RI'] as const).map((r) => ({
+      key: `stub:${r}`,
+      d: `M ${cx(P[r])} ${bus} V ${cy(P[r])}`,
+    })),
+    { key: 'trunk:left', d: `M ${left} ${H} V ${top} H ${W}` },
+    ...(['LK', 'A', 'MQ', 'X'] as const).map((r) => ({
+      key: `stub:${r}`,
+      d: `M ${cx(P[r])} ${top} V ${cy(P[r])}`,
+    })),
+    ...(['RAP', 'RBP', 'BUS'] as const).map((r) => ({
+      key: `stub:${r}`,
+      d: `M ${left} ${cy(P[r])} H ${P[r].x + 10}`,
+    })),
+    { key: 'A>LALU', d: `M ${cx(P.A)} ${cy(P.A)} V ${cy(P.LALU)}` },
+    { key: 'stub:ALU', d: `M ${cx(P.ALU)} ${cy(P.ALU)} V ${bus}` },
   ];
   const gap = (P.RALU.y - P.X.y) / 2;
-  thick.push(`M ${cx(P.RALU)} ${cy(P.RALU)} V ${cy(P.RALU) - gap} H ${cx(P.X)} V ${cy(P.X)}`);
+  thick.push({
+    key: 'X>RALU',
+    d: `M ${cx(P.RALU)} ${cy(P.RALU)} V ${cy(P.RALU) - gap} H ${cx(P.X)} V ${cy(P.X)}`,
+  });
   const trapezoid = (from: Box, to: Box) =>
     `M ${from.x} ${from.y + BH} H ${from.x + BW} L ${to.x + BW} ${to.y} H ${to.x} Z`;
-  const fill = [trapezoid(P.LALU, P.ALU), trapezoid(P.RALU, P.ALU)];
+  const fill: Seg[] = [
+    { key: 'LALU>ALU', d: trapezoid(P.LALU, P.ALU) },
+    { key: 'RALU>ALU', d: trapezoid(P.RALU, P.ALU) },
+  ];
   if (cea) {
-    thick.push(`M ${cx(P.RR)} ${cy(P.RR)} V ${cy(P.L)} H ${P.L.x + BH / 2}`);
-    thick.push(`M ${cx(P.RI)} ${cy(P.RI)} V ${cy(P.R)} H ${cx(P.R)}`);
-    thick.push(`M ${cx(P.LR)} ${cy(P.LR)} V ${cy(P.R)} H ${cx(P.R)}`);
-    fill.push(trapezoid(P.L, P.SUMA), trapezoid(P.R, P.SUMA));
-    thick.push(`M ${cx(P.SUMA)} ${cy(P.SUMA)} V ${P.SUMA.y + BH - 6} H ${RAE_CEA.x}`);
+    thick.push({ key: 'RR>L', d: `M ${cx(P.RR)} ${cy(P.RR)} V ${cy(P.L)} H ${P.L.x + BH / 2}` });
+    thick.push({ key: 'RI>R', d: `M ${cx(P.RI)} ${cy(P.RI)} V ${cy(P.R)} H ${cx(P.R)}` });
+    thick.push({ key: 'LR>R', d: `M ${cx(P.LR)} ${cy(P.LR)} V ${cy(P.R)} H ${cx(P.R)}` });
+    fill.push({ key: 'L>SUMA', d: trapezoid(P.L, P.SUMA) }, { key: 'R>SUMA', d: trapezoid(P.R, P.SUMA) });
+    thick.push({
+      key: 'SUMA>RAE',
+      d: `M ${cx(P.SUMA)} ${cy(P.SUMA)} V ${P.SUMA.y + BH - 6} H ${RAE_CEA.x}`,
+    });
   } else {
-    thick.push(`M ${cx(P.RAE)} ${cy(P.RAE)} V ${cy(P.RAE) + (H - P.RAE.y) / 2} H ${left}`);
+    thick.push({
+      key: 'stub:RAE',
+      d: `M ${cx(P.RAE)} ${cy(P.RAE)} V ${cy(P.RAE) + (H - P.RAE.y) / 2} H ${left}`,
+    });
   }
-  return { thick, thin: [`M ${cx(P.A)} ${cy(P.A)} H ${cx(P.MQ)}`], fill };
+  return { thick, thin: [{ key: 'A-MQ', d: `M ${cx(P.A)} ${cy(P.A)} H ${cx(P.MQ)}` }], fill };
+}
+
+/** Segments joining a register with the BUS register (both bus lines meet in the BUS box). */
+function busRoute(reg: string): string[] {
+  if (['RR', 'LR', 'RI', 'ALU'].includes(reg)) return [`stub:${reg}`, 'trunk:bus'];
+  if (['LK', 'A', 'MQ', 'X', 'RAP', 'RBP', 'RAE'].includes(reg)) return [`stub:${reg}`, 'trunk:left', 'stub:BUS'];
+  return [];
+}
+
+/** Keys of the segments used by a transfer: a direct link if there is one, otherwise the bus. */
+function flowSegments(flow: Flow, all: ReadonlySet<string>): Set<string> {
+  const keys = new Set<string>();
+  for (const from of flow.from) {
+    if (from === flow.to) continue;
+    const direct = `${from}>${flow.to}`;
+    if (all.has(direct)) keys.add(direct);
+    else if (from === 'BUS') busRoute(flow.to).forEach((k) => keys.add(k));
+    else if (flow.to === 'BUS') busRoute(from).forEach((k) => keys.add(k));
+  }
+  return keys;
 }
 
 const pct = (v: number, total: number) => `${(v / total) * 100}%`;
@@ -131,12 +175,32 @@ export class Schematic {
   protected readonly W = W;
   protected readonly H = H;
   protected readonly flagNames = FLAG_NAMES;
+  protected readonly captionStyle = {
+    left: pct(50, W),
+    top: pct(384, H),
+    width: pct(230, W),
+    height: pct(BH, H),
+  };
   protected readonly cea = computed(() => {
     this.svc.version();
     return this.svc.sim.ceaLayout;
   });
   protected readonly paths = computed(() => busPaths(this.cea()));
   protected readonly regNames = computed(() => (this.cea() ? CEA_REGS : NORMAL_REGS));
+  /** Transfer of the current micro-operation: highlighted segments, source and target registers. */
+  protected readonly flow = computed(() => {
+    this.svc.version();
+    const flow = this.svc.sim.flow;
+    if (!flow) return null;
+    const p = this.paths();
+    const all = new Set([...p.thick, ...p.thin, ...p.fill].map((s) => s.key));
+    return {
+      segments: flowSegments(flow, all),
+      from: new Set(flow.from),
+      to: flow.to,
+      text: `${flow.op}: ${flow.from.length ? flow.from.join(', ') : 'stała'} → ${flow.to}`,
+    };
+  });
   private lastFocused = '';
   private dragValue: number | null = null;
 
@@ -155,6 +219,15 @@ export class Schematic {
       }
       if (!key) this.lastFocused = '';
     });
+  }
+
+  /** Role of a register in the current transfer – shown as a text tag, not only as a colour. */
+  protected flowRole(name: string): string {
+    const f = this.flow();
+    if (!f) return '';
+    const src = f.from.has(name);
+    const dst = f.to === name;
+    return src && dst ? 'źródło i cel' : src ? 'źródło' : dst ? 'cel' : '';
   }
 
   protected boxStyle(name: RegName | 'RBPS') {

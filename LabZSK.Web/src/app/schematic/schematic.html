@@ -1,16 +1,31 @@
 @let sim = svc.at(svc.version());
 <div class="board" [attr.data-skin]="svc.skin()" [class.edit]="sim.inEditMode">
+  @let fv = flow();
   <svg [attr.viewBox]="'0 0 ' + W + ' ' + H" preserveAspectRatio="none" aria-hidden="true">
-    @for (d of paths().fill; track $index) {
-      <path [attr.d]="d" class="alu" />
+    @for (p of paths().fill; track p.key) {
+      <path [attr.d]="p.d" class="alu" [class.active]="fv?.segments?.has(p.key)" />
     }
-    @for (d of paths().thick; track $index) {
-      <path [attr.d]="d" class="bus" />
+    @for (p of paths().thick; track p.key) {
+      <path [attr.d]="p.d" class="bus" [class.active]="fv?.segments?.has(p.key)" />
     }
-    @for (d of paths().thin; track $index) {
-      <path [attr.d]="d" class="bus thin" />
+    @for (p of paths().thin; track p.key) {
+      <path [attr.d]="p.d" class="bus thin" />
+    }
+    @if (fv) {
+      @for (p of paths().thick; track p.key) {
+        @if (fv.segments.has(p.key)) {
+          <path [attr.d]="p.d" class="flow-dash" />
+        }
+      }
     }
   </svg>
+
+  @if (fv) {
+    <div class="flow-caption" role="status" [style]="captionStyle">
+      <span class="label">Przepływ</span>
+      {{ fv.text }}
+    </div>
+  }
 
   @for (name of regNames(); track name) {
     @let reg = sim.regs[name];
@@ -19,9 +34,12 @@
       class="reg"
       [class.check]="reg.needCheck"
       [class.target]="sim.registerToCheck === name && !reg.needCheck"
+      [class.flow-src]="fv?.from?.has(name)"
+      [class.flow-dst]="fv?.to === name"
       [class.editable]="editable"
       [class.bus-reg]="name === 'BUS'"
       [class.raps-reg]="name === 'RAPS'"
+      [class.under-bus]="name === 'RR' || name === 'LR' || name === 'RI'"
       [style]="boxStyle(name)"
       draggable="true"
       (dragstart)="onDragStart($event, name)"
@@ -30,6 +48,9 @@
       [title]="name + ' = ' + reg.value + ' (' + display(name) + ')'"
     >
       <span class="label">{{ name }}</span>
+      @if (flowRole(name); as role) {
+        <span class="role">{{ role }}</span>
+      }
       @if (editable) {
         <input
           #inp
