@@ -36,6 +36,102 @@
   --board-text: rgb(249 239 245);
 }
 
+.board[data-skin='xmas'] {
+  --board-bg: rgb(9 18 38);
+  --board-bus: rgb(245 245 245);
+  --board-text: rgb(255 214 92);
+  background:
+    linear-gradient(to top, rgb(235 242 250 / 0.9), rgb(235 242 250 / 0) 5%),
+    radial-gradient(ellipse at 50% 0%, rgb(28 52 92), var(--board-bg) 70%);
+}
+.board[data-skin='xmas'] .alu {
+  fill: rgb(214 170 50);
+}
+.board[data-skin='xmas'] .reg:not(.check),
+.board[data-skin='xmas'] .flag {
+  /* Snow lying on top of the registers. */
+  box-shadow: inset 0 0.28em 0 rgb(250 252 255);
+}
+.board[data-skin='xmas'] .label {
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
+}
+
+/* Candy cane stripes running along the buses. */
+.stripe {
+  fill: none;
+  stroke: rgb(214 31 38);
+  stroke-width: 10;
+  stroke-linejoin: bevel;
+  stroke-dasharray: 10 10;
+  animation: candy 1.2s linear infinite;
+}
+.stripe.thin {
+  stroke-width: 5;
+  stroke-dasharray: 6 6;
+}
+@keyframes candy {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.bulb {
+  animation: twinkle 2.4s ease-in-out infinite;
+}
+.bulb .wire {
+  stroke: rgb(30 90 40);
+  stroke-width: 2;
+}
+.bulb .cap {
+  fill: rgb(120 130 140);
+}
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 4px rgb(255 255 255 / 0.9)) brightness(1.15);
+  }
+  50% {
+    opacity: 0.35;
+    filter: none;
+  }
+}
+
+.snow {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.flake {
+  position: absolute;
+  top: -5%;
+  color: rgb(255 255 255 / 0.85);
+  line-height: 1;
+  animation: fall linear infinite;
+}
+@keyframes fall {
+  from {
+    top: -5%;
+    transform: translateX(0) rotate(0deg);
+  }
+  to {
+    top: 102%;
+    transform: translateX(var(--drift, 0)) rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stripe,
+  .bulb,
+  .flake {
+    animation: none;
+  }
+  .flake {
+    display: none;
+  }
+}
+
 .board.edit {
   outline: 3px dashed var(--accent);
   outline-offset: -3px;

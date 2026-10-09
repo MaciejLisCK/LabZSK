@@ -10,7 +10,38 @@
     @for (d of paths().thin; track $index) {
       <path [attr.d]="d" class="bus thin" />
     }
+    @if (xmas()) {
+      @for (d of paths().thick; track $index) {
+        <path [attr.d]="d" class="stripe" />
+      }
+      @for (d of paths().thin; track $index) {
+        <path [attr.d]="d" class="stripe thin" />
+      }
+      @for (b of bulbs; track $index) {
+        <g class="bulb" [attr.transform]="'translate(' + b.x + ' 8)'" [style.animation-delay]="b.delay">
+          <path d="M 0 0 V 8" class="wire" />
+          <rect x="-3" y="6" width="6" height="4" rx="1" class="cap" />
+          <ellipse cx="0" cy="15" rx="4.5" ry="6" [attr.fill]="b.color" />
+        </g>
+      }
+    }
   </svg>
+
+  @if (xmas()) {
+    <div class="snow" aria-hidden="true">
+      @for (f of flakes; track $index) {
+        <span
+          class="flake"
+          [style.left.%]="f.left"
+          [style.font-size.px]="f.size"
+          [style.animation-duration.s]="f.duration"
+          [style.animation-delay.s]="f.delay"
+          [style.--drift]="f.drift + 'px'"
+          >{{ f.char }}</span
+        >
+      }
+    </div>
+  }
 
   @for (name of regNames(); track name) {
     @let reg = sim.regs[name];

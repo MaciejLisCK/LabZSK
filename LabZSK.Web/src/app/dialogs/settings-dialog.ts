@@ -70,6 +70,7 @@ export class SettingsDialog {
     { id: 'blue', label: 'Niebieski' },
     { id: 'red', label: 'Czerwony' },
     { id: 'grey', label: 'Czarny' },
+    { id: 'xmas', label: 'Świąteczny' },
   ];
 
   open(): void {

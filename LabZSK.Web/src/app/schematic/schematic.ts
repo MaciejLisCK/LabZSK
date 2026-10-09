@@ -119,6 +119,36 @@ function busPaths(cea: boolean): { thick: string[]; thin: string[]; fill: string
 
 const pct = (v: number, total: number) => `${(v / total) * 100}%`;
 
+/** Deterministic pseudo-random generator, so the Christmas decorations look the same on every render. */
+function rng(seed: number): () => number {
+  return () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+}
+
+const BULB_COLORS = ['#ff4d4d', '#ffd23f', '#4dd2ff', '#ff8cf0', '#ffffff'];
+
+/** Light bulbs hanging from the top bus of the Christmas skin. */
+const BULBS = Array.from({ length: 24 }, (_, i) => ({
+  x: 45 + i * 40,
+  color: BULB_COLORS[i % BULB_COLORS.length],
+  delay: `${(i % 7) * -0.35}s`,
+}));
+
+/** Snowflakes of the Christmas skin. */
+const FLAKES = (() => {
+  const r = rng(2412);
+  return Array.from({ length: 45 }, () => ({
+    left: r() * 100,
+    size: 8 + r() * 12,
+    duration: 7 + r() * 9,
+    delay: -r() * 16,
+    drift: (r() - 0.5) * 80,
+    char: r() < 0.6 ? '❄' : '•',
+  }));
+})();
+
 @Component({
   selector: 'app-schematic',
   templateUrl: './schematic.html',
@@ -137,6 +167,9 @@ export class Schematic {
   });
   protected readonly paths = computed(() => busPaths(this.cea()));
   protected readonly regNames = computed(() => (this.cea() ? CEA_REGS : NORMAL_REGS));
+  protected readonly xmas = computed(() => this.svc.skin() === 'xmas');
+  protected readonly bulbs = BULBS;
+  protected readonly flakes = FLAKES;
   private lastFocused = '';
   private dragValue: number | null = null;
 

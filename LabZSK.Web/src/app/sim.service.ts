@@ -15,7 +15,7 @@ import { AutoRunTarget, SavedState, SimSettings, Simulator, StudentInfo } from '
 const STORAGE_KEY = 'labzsk-web-state-v1';
 const SKIN_KEY = 'labzsk-web-skin';
 
-export type Skin = 'light' | 'green' | 'blue' | 'red' | 'grey';
+export type Skin = 'light' | 'green' | 'blue' | 'red' | 'grey' | 'xmas';
 
 function download(name: string, data: Uint8Array | string, type = 'application/octet-stream'): void {
   const blob = new Blob([data as BlobPart], { type });
