@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LabZSK</title>
+  <meta name="description" content="Symulator komputera LabZSK ze sterowaniem mikroprogramowym">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231b6033'/%3E%3Cpath d='M6 10h20M6 22h20M10 6v20M22 6v20' stroke='%2385c648' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">LabZSK</span>
+    <nav class="menus">
+      <details class="menu">
+        <summary data-t="menuSim"></summary>
+        <div class="menu-list">
+          <button data-action="showLog" data-t="showLog"></button>
+          <button data-action="downloadLog" data-t="downloadLog"></button>
+          <button data-action="closeLog" data-t="closeLog"></button>
+          <hr>
+          <button data-action="editRegisters" id="menuEdit" data-t="editRegisters"></button>
+          <button data-action="clearRegisters" data-t="clearRegisters"></button>
+          <hr>
+          <button data-action="settings" data-t="settings"></button>
+        </div>
+      </details>
+      <details class="menu">
+        <summary data-t="menuPM"></summary>
+        <div class="menu-list">
+          <button data-action="loadPM" data-t="load"></button>
+          <button data-action="savePM" data-t="save"></button>
+          <button data-action="printPM" data-t="print"></button>
+          <hr>
+          <button data-action="clearPM" data-t="clearTable"></button>
+        </div>
+      </details>
+      <details class="menu">
+        <summary data-t="menuPO"></summary>
+        <div class="menu-list">
+          <button data-action="editCell" data-t="editCell"></button>
+          <button data-action="clearCell" data-t="clearCell"></button>
+          <hr>
+          <button data-action="loadPO" data-t="load"></button>
+          <button data-action="savePO" data-t="save"></button>
+          <button data-action="printPO" data-t="print"></button>
+          <hr>
+          <button data-action="clearPO" data-t="clearTable"></button>
+        </div>
+      </details>
+      <details class="menu">
+        <summary data-t="menuHelp"></summary>
+        <div class="menu-list">
+          <button data-action="help" data-t="menuHelp"></button>
+          <button data-action="about" data-t="about"></button>
+        </div>
+      </details>
+    </nav>
+    <h1 class="title" data-t="title"></h1>
+    <button class="lang" data-action="lang" id="langBtn">EN</button>
+  </header>
+
+  <main class="layout">
+    <section class="left">
+      <div class="cpu-scroll">
+        <div class="cpu" id="cpu" data-skin="0">
+          <svg class="wires" id="wires" viewBox="0 0 1000 560" aria-hidden="true"></svg>
+        </div>
+      </div>
+      <section class="panel pm-panel">
+        <h2 data-t="pmTitle"></h2>
+        <div class="table-scroll" id="pmScroll">
+          <table class="grid pm" id="pmTable"></table>
+        </div>
+      </section>
+    </section>
+
+    <aside class="right">
+      <section class="panel control">
+        <div class="status-row">
+          <span class="status" id="status"></span>
+          <span class="clock" id="clock"></span>
+        </div>
+        <dl class="info">
+          <div><dt data-t="mark"></dt><dd id="infoMark" class="mark"></dd></div>
+          <div><dt data-t="mistakes"></dt><dd id="infoMistakes"></dd></div>
+          <div><dt data-t="tact"></dt><dd id="infoTact"></dd></div>
+          <div><dt data-t="cycle"></dt><dd id="infoCycle"></dd></div>
+        </dl>
+        <div class="buttons">
+          <button class="btn primary" id="btnMacro" data-action="macro" data-t="macroBtn"></button>
+          <button class="btn" id="btnMicro" data-action="micro" data-t="microBtn"></button>
+          <button class="btn primary" id="btnNext" data-action="next" data-t="nextTact" hidden></button>
+          <button class="btn confirm" id="btnOk" data-action="ok" data-t="ok" hidden></button>
+          <button class="btn" id="btnEndEdit" data-action="editRegisters" data-t="endEditRegisters" hidden></button>
+        </div>
+        <div class="auto" id="autoBox" hidden>
+          <label><span data-t="autoCycles"></span> <input type="number" id="autoCycles" min="1" max="10000" value="1"></label>
+          <button class="btn" id="btnAuto" data-action="auto" data-t="autoBtn"></button>
+        </div>
+        <h3 data-t="microLog"></h3>
+        <ol class="minilog" id="miniLog"></ol>
+        <button class="btn link" data-action="showLog" data-t="showLog"></button>
+      </section>
+      <section class="panel po-panel">
+        <h2 data-t="poTitle"></h2>
+        <div class="table-scroll" id="poScroll">
+          <table class="grid po" id="poTable"></table>
+        </div>
+        <pre class="cell-desc" id="cellDesc"></pre>
+      </section>
+    </aside>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <input type="file" id="fileInput" hidden>
+
+  <dialog id="dlg">
+    <form method="dialog" class="dlg">
+      <h2 id="dlgTitle"></h2>
+      <div id="dlgBody"></div>
+      <div class="dlg-buttons" id="dlgButtons"></div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
