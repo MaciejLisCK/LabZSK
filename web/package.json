@@ -1,0 +1,11 @@
+{
+  "name": "labzsk-web",
+  "private": true,
+  "type": "module",
+  "description": "LabZSK microprogrammed computer simulator - web version",
+  "license": "GPL-3.0",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "start": "npx --yes http-server -c-1 -p 8080 ."
+  }
+}
