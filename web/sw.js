@@ -1,9 +1,9 @@
 // Keeps a copy of the simulator's files so that the page reloads even while the server is unreachable
 // (a started attempt continues offline). Always tries the network first, so updates apply at once.
 
-const CACHE = 'labzsk-v2';
+const CACHE = 'labzsk-v3';
 const FILES = ['./', 'index.html', 'css/cpu.css', 'css/style.css', 'js/app.js', 'js/engine.js', 'js/isa.js', 'js/i18n.js',
-  'js/files.js', 'js/attempt.js', 'js/store.js', 'js/cpu-view.js'];
+  'js/files.js', 'js/attempt.js', 'js/store.js', 'js/cpu-view.js', 'js/panels.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)));

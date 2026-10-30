@@ -11,6 +11,7 @@ import { savePM, loadPM, savePO, loadPO } from './files.js';
 import { bootAttempt, localSessions } from './attempt.js';
 import { createCpu, regText } from './cpu-view.js';
 import { load, save } from './store.js';
+import { initPanels } from './panels.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...children) => {
@@ -1182,6 +1183,10 @@ function setLanguage(lang) {
   document.documentElement.lang = lang;
   const tr = t();
   for (const node of document.querySelectorAll('[data-t]')) node.textContent = tr[node.dataset.t];
+  for (const node of document.querySelectorAll('[data-t-hint]')) {
+    node.title = tr[node.dataset.tHint];
+    node.setAttribute('aria-label', tr[node.dataset.tHint]);
+  }
   $('langBtn').textContent = lang === 'pl' ? 'EN' : 'PL';
   document.querySelector('#pmTable th').textContent = tr.address;
   const poHead = document.querySelectorAll('#poTable th');
@@ -1267,6 +1272,7 @@ setLanguage(settings.lang);
 tickClock();
 setInterval(tickClock, 1000);
 if (attempt) startAttempt();
+initPanels();
 if (viewer) startViewer();
 if (blocked) showBlocker(blocked.blocked);
 // offline copy of the page (needs HTTPS or localhost; elsewhere the browser does not allow it)
