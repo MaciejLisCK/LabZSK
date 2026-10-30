@@ -116,12 +116,16 @@ pre.log .change { color: #e65100; }
 .audit { margin-top: 8px; font-size: 13px; }
 .audit ul { margin: 6px 0; padding-left: 18px; }
 
-.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 10px; }
+/* --tile: tile width chosen in the live view (S/M/L/XL or the slider); text scales with it */
+.tiles { --tile: 520px; display: grid; grid-template-columns: repeat(auto-fill, min(var(--tile), 100%)); gap: 10px; }
+.size-range { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.size-range input { width: 160px; }
 .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px; cursor: pointer; min-width: 0; }
 .tile:hover { border-color: var(--accent); }
 .tile header { display: flex; justify-content: space-between; gap: 8px; }
 .tile header strong { word-break: break-all; }
-pre.log.tail { height: 15.5em; overflow: hidden; margin-top: 6px; font-size: 11px; }
+pre.log.tail { height: 15.5em; overflow: hidden; margin-top: 6px; font-size: clamp(11px, calc(var(--tile) / 40), 22px); }
+.tiles .tile header, .tiles .tile .muted { font-size: clamp(12px, calc(var(--tile) / 36), 20px); }
 
 .form { max-width: 760px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
 .form h2 { margin: 0; font-size: 17px; }
