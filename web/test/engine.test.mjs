@@ -71,6 +71,24 @@ test('a wrong answer counts a mistake and the correct value is restored', () => 
   assert.equal(m.mark, 2);
 });
 
+test('a reload in the middle of a cycle repeats the cycle but keeps its mistakes and log', () => {
+  const m = ldaProgram();
+  const stored = [];
+  m.onMistake = () => stored.push(structuredClone(m.scoredCheckpoint()));
+  m.saveCheckpoint();
+  run(m, { answer: (name, v) => (name === 'RBP' ? v + 1 : v) });
+  assert.equal(stored.length, 1);
+
+  const reloaded = new Machine();
+  reloaded.restore(stored[0]);
+  assert.equal(reloaded.mistakes, 1);
+  assert.equal(reloaded.regs.RAPS.value, 0, 'the cycle starts again');
+  assert.equal(reloaded.regs.LR.value, 0, 'registers are from before the cycle');
+  assert.match(reloaded.logText, /Błąd\(1\): RBP/);
+  run(reloaded);
+  assert.equal(reloaded.mistakes, 1);
+});
+
 test('MICRO mode stops at every tact', () => {
   const m = ldaProgram();
   const { tacts } = run(m, { micro: true });

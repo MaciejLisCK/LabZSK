@@ -176,7 +176,7 @@ export class Attempts {
         insert.run(a.id, seq, kind, text, ts, now, offline);
         accepted.push({ seq, kind, text, client_ts: ts, received_at: now, offline });
         lastSeq = seq;
-        if (Number.isInteger(e.mistakes) && e.mistakes >= 0) mistakes = e.mistakes;
+        if (Number.isInteger(e.mistakes) && e.mistakes >= 0) mistakes = Math.max(mistakes, e.mistakes); // never goes down within an attempt
         if (Number.isInteger(e.cycle) && e.cycle >= 0) cycles = e.cycle;
         if (kind === 'finish') {
           status = 'finished';

@@ -142,6 +142,13 @@ test('a clean attempt is valid without the interruption flag', async () => {
   assert.equal(r.interrupted, false);
 });
 
+test('the mistake count never goes down, even if a client reports a lower one', async () => {
+  const { attemptId, sessionKey } = (await open(link('41', '1'))).body;
+  await call('POST', '/api/attempt/sync', { attemptId, sessionKey, events: [ev(1, 'a\n', { mistakes: 2 }), ev(2, 'b\n', { mistakes: 0 })], sentAt: Date.now() });
+  await call('POST', '/api/attempt/sync', { attemptId, sessionKey, events: [{ seq: 3, kind: 'finish', text: '', ts: Date.now(), mistakes: 0 }], sentAt: Date.now() });
+  assert.equal(verifyLog(ctx.attempts.finalLog(attemptId), SECRET, { user: '41' }).meta.mistakes, 2);
+});
+
 test('unsigned emergency log is recognised and never valid', () => {
   const meta = { format: 'labzsk-log', v: 2, signed: false, user: '1', course: '8', session: '11', task: '1' };
   assert.equal(verifyLog(`MAKRO\n#LABZSK ${JSON.stringify(meta)}\n`, SECRET).result, 'unsigned');
