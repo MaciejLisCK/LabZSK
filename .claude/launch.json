@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8417", "--directory", "web"],
       "port": 8417
+    },
+    {
+      "name": "labzsk-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--no-warnings=ExperimentalWarning", "server/src/server.js"],
+      "port": 8080
     }
   ]
 }

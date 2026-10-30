@@ -6,6 +6,7 @@
   <title>LabZSK</title>
   <meta name="description" content="Symulator komputera LabZSK ze sterowaniem mikroprogramowym">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231b6033'/%3E%3Cpath d='M6 10h20M6 22h20M10 6v20M22 6v20' stroke='%2385c648' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/cpu.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -17,7 +18,7 @@
         <div class="menu-list">
           <button data-action="showLog" data-t="showLog"></button>
           <button data-action="downloadLog" data-t="downloadLog"></button>
-          <button data-action="closeLog" data-t="closeLog"></button>
+          <button data-action="closeLog" id="menuCloseLog" data-t="closeLog"></button>
           <hr>
           <button data-action="editRegisters" id="menuEdit" data-t="editRegisters"></button>
           <button data-action="clearRegisters" data-t="clearRegisters"></button>
@@ -59,6 +60,21 @@
     <h1 class="title" data-t="title"></h1>
     <button class="lang" data-action="lang" id="langBtn">EN</button>
   </header>
+
+  <section class="attempt-bar" id="attemptBar" hidden>
+    <div class="attempt-info">
+      <strong data-t="labTask"></strong>: <span id="attemptTask"></span>
+      <span class="attempt-student"><span data-t="studentLabel"></span>: <span id="attemptStudent"></span></span>
+      <span class="attempt-note" id="attemptNote"></span>
+    </div>
+    <div class="attempt-actions">
+      <span class="conn" id="connState"></span>
+      <button class="btn primary" id="btnDownloadFinal" data-action="downloadLog" data-t="downloadFinalLog" hidden></button>
+      <button class="btn danger" id="btnFinish" data-action="finish" data-t="finishWork"></button>
+    </div>
+    <div class="attempt-others" id="attemptOthers" hidden></div>
+  </section>
+  <section class="attempt-bar free" id="freeBar" hidden></section>
 
   <main class="layout">
     <section class="left">
@@ -111,6 +127,14 @@
       </section>
     </aside>
   </main>
+
+  <div class="blocker" id="blocker" hidden>
+    <div class="blocker-box">
+      <h2 id="blockerTitle"></h2>
+      <p id="blockerText"></p>
+      <div class="dlg-buttons" id="blockerButtons"></div>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <input type="file" id="fileInput" hidden>

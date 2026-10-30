@@ -13,7 +13,8 @@ Katalog [`web/`](web) zawiera przeglądarkową wersję symulatora – statyczną
 - edytory pamięci mikroprogramów i pamięci operacyjnej z tymi samymi regułami co w wersji desktopowej,
 - pliki `.pm` i `.po` są zgodne binarnie z wersją desktopową (wczytywanie i zapis),
 - stan symulatora, log i ustawienia są przechowywane w przeglądarce (`localStorage`); log można pobrać jako plik `.log`,
-- interfejs po polsku i angielsku, działa także na telefonie.
+- interfejs po polsku i angielsku, działa także na telefonie,
+- bez serwera działa jako tryb swobodnej nauki; ocena jest pokazywana tylko wtedy, gdy progi przekaże system zewnętrzny.
 
 Uruchomienie lokalne (moduły ES wymagają serwera HTTP, samo otwarcie `index.html` z dysku nie wystarczy):
 
@@ -31,4 +32,48 @@ cd web
 npm test
 ```
 
-Nie przeniesiono funkcji związanych z systemem Windows: szyfrowanej konfiguracji, ukrytego dziennika uruchomień (ADS), połączenia z serwerem LabZSKServer ani kontroli integralności pliku logu.
+Nie przeniesiono funkcji związanych z systemem Windows: szyfrowanej konfiguracji ani ukrytego dziennika uruchomień (ADS). Połączenie z serwerem i kontrolę logu zastępuje serwer opisany niżej.
+
+## Serwer: zadania z Lab Managera, podgląd na żywo, panel nauczyciela
+
+Katalog [`server/`](server) to serwer LabZSK (Node.js 22.13+, bez pakietów npm – baza SQLite wbudowana w Node). Jeden proces udostępnia:
+
+- symulator z `web/` pod `/` – bez parametrów tryb swobodnej nauki, z linkiem z Lab Managera zadanie laboratoryjne,
+- panel nauczyciela pod `/panel/` (logowanie loginem i hasłem): lista podejść, log na żywo, kafelki wszystkich studentów (przełącznik Log / CPU), pełny widok aplikacji studenta tylko do odczytu, „Wyczyść podejście”, pobranie logu, weryfikacja pliku, ustawienie wspólnego sekretu, link testowy.
+
+Ustalenia: [WYMAGANIA_WEB.md](WYMAGANIA_WEB.md).
+
+### Link do zadania (Lab Manager)
+
+```
+https://<adres LabZSK>/?user=17&course=8&session=11&task=26&sig=<HMAC>
+```
+
+`sig` = HMAC-SHA256(wspólny sekret, `user=17&course=8&session=11&task=26`) zapisany szesnastkowo (64 znaki). Wartości: litery, cyfry, `-` i `_` (do 64 znaków). Wspólny sekret ustawia się w panelu (Ustawienia) i wpisuje ten sam w ustawieniach Lab Managera.
+
+Zasady wejścia: brak podejścia → nowe; ta sama przeglądarka → kontynuacja; inna przeglądarka lub druga karta → blokada; zakończone → odmowa. Kolejne podejście: nauczyciel klika „Wyczyść podejście”. Bez serwera zadanie można zacząć i kontynuować – kroki czekają w przeglądarce (IndexedDB) i są dosyłane jako offline.
+
+### Odcisk logu i skrypt sprawdzający
+
+Log końcowy zaczyna się jak zwykły log symulatora, na końcu ma dane podejścia (`#LABZSK {...}`) i odcisk:
+
+```
+#LABZSK-HMAC <64 znaki hex>
+```
+
+Odcisk = HMAC-SHA256(sekret, `user\ncourse\nsession\ntask\n` + cała treść przed linią `#LABZSK-HMAC`, końce linii jako LF). Skrypt [`tools/verify-log.mjs`](tools/verify-log.mjs) (Node 18+, bez pakietów) robi to samo – kod wyjścia: 0 poprawny, 5 poprawny, ale z przerwą w połączeniu (poinformować nauczyciela), 1 zmieniony / nie z tego serwera, 2 log awaryjny bez odcisku, 3 inny student lub zadanie:
+
+```
+node tools/verify-log.mjs plik.log --secret-file sekret.txt --user 17 --course 8 --session 11 --task 26
+```
+
+### Testowanie lokalnie
+
+Bez Dockera (Node.js 22.13+): `cd server` i `npm start`. Z Dockerem: `docker compose up --build` w katalogu głównym.
+
+1. http://localhost:8080/panel/ – lokalnie konto `prowadzacy` / `prowadzacy` (z `server/.env`).
+2. Ustawienia → „Wygeneruj nowy sekret”.
+3. „Link testowy” → utwórz link → otwórz go w innej przeglądarce lub oknie prywatnym (to widok studenta).
+4. „Na żywo” → Log / CPU, „Pełny widok”.
+
+Testy: `cd server && npm test` oraz `cd web && npm test`. Konta nauczycieli: `node src/cli.js teacher <login> <hasło>`.

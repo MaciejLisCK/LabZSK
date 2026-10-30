@@ -243,3 +243,8 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
+# LabZSK web server: local data and configuration
+server/data/
+server/.env
+/.env
+

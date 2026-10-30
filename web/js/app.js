@@ -1,6 +1,6 @@
 // User interface of the LabZSK web simulator.
 
-import { Machine, REG_NAMES, FLAG_NAMES, NOT_EDITABLE, DEFAULT_MARKS, emptyPM, emptyPO } from './engine.js';
+import { Machine, REG_NAMES, FLAG_NAMES, NOT_EDITABLE, emptyPM, emptyPO } from './engine.js';
 import {
   COL, PM_COLUMNS, SIMPLE_OPS, COMPLEX_OPS, hex, bin16, s16, parseValue, decodeCell, cellValue,
   microOpDescription, instructionDescription, memoryCell, emptyCell, encodeSimple, encodeComplex,
@@ -8,6 +8,9 @@ import {
 } from './isa.js';
 import { strings } from './i18n.js';
 import { savePM, loadPM, savePO, loadPO } from './files.js';
+import { bootAttempt, localSessions } from './attempt.js';
+import { createCpu, regText } from './cpu-view.js';
+import { load, save } from './store.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...children) => {
@@ -23,18 +26,58 @@ const el = (tag, attrs = {}, ...children) => {
 };
 
 // ------------------------------------------------------------------ state
-const STATE_KEY = 'labzsk:state';
 const SETTINGS_KEY = 'labzsk:settings';
 
-const settings = { lang: 'pl', skin: 0, marks: { ...DEFAULT_MARKS }, teacher: false, delay: 200 };
+const settings = { lang: 'pl', skin: 0, teacher: false, delay: 200 };
 try {
-  Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}'));
+  const { marks, ...saved } = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
+  Object.assign(settings, saved);
 } catch { /* storage unavailable */ }
+const t = () => strings(settings.lang);
 
-const m = new Machine({ lang: settings.lang, marks: settings.marks });
-try {
-  m.restore(JSON.parse(localStorage.getItem(STATE_KEY) ?? 'null'));
-} catch { /* storage unavailable or corrupted */ }
+// Teacher's read-only view of a student (?view=<attempt>, opened from the panel at /panel/sim/),
+// a lab task from a Lab Manager link, a blocked task, or free learning.
+const viewId = new URL(location.href).searchParams.get('view');
+let view = null; // { attempt, state } of the watched student
+let boot = null;
+if (viewId) {
+  try {
+    const res = await fetch(`../api/attempts/${encodeURIComponent(viewId)}`, { cache: 'no-store' });
+    if (res.ok) view = await res.json();
+    else boot = { blocked: res.status === 401 ? 'view-login' : 'cleared' };
+  } catch {
+    boot = { blocked: 'view-offline' };
+  }
+} else boot = await bootAttempt();
+const viewer = Boolean(view);
+const blocked = boot?.blocked ? boot : null;
+const attempt = blocked ? null : boot;
+const STATE_KEY = attempt ? attempt.stateKey : 'labzsk:state';
+const freeTeacher = settings.teacher;
+if (attempt || viewer) settings.teacher = false; // no automatic execution in a lab task
+
+// Marks are switched off: only the number of mistakes is shown.
+const m = new Machine({ lang: settings.lang, marks: null });
+let studentEdit = false; // viewer: the student is editing registers
+if (viewer) {
+  m.restore({ ...view.state, logText: view.events.map(eventText).join(''), logOpen: true });
+  applyLive(view.state);
+} else if (!blocked) {
+  try {
+    let saved = attempt?.fresh ? null : await load(STATE_KEY);
+    if (saved === undefined && !attempt) saved = JSON.parse(localStorage.getItem(STATE_KEY) ?? 'null'); // before IndexedDB
+    m.restore(saved ?? null);
+  } catch { /* storage unavailable or corrupted */ }
+}
+m.updateMark();
+if (attempt) {
+  const log = m.log.bind(m);
+  m.log = (text) => {
+    log(text);
+    attempt.record(text);
+  };
+}
+const locked = () => Boolean(viewer || attempt?.finished || attempt?.blocked);
 
 let gen = null; // running cycle
 let editMode = false;
@@ -43,64 +86,64 @@ let selectedPO = 0;
 const appStart = new Date();
 let simStart = null;
 
-const t = () => strings(settings.lang);
-
 function persist() {
+  if (viewer || blocked) return;
+  save(STATE_KEY, m.snapshot());
   try {
-    localStorage.setItem(STATE_KEY, JSON.stringify(m.snapshot()));
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(attempt ? { ...settings, teacher: freeTeacher } : settings));
   } catch { /* storage unavailable */ }
+  attempt?.stateChanged();
+}
+
+/** Text of a step of the student's log as the teacher sees it. */
+function eventText(e) {
+  if (e.kind === 'finish') return `\n======== ${t().workFinishedLog} ========\n`;
+  if (!e.offline) return e.text;
+  return e.text.replace(/\n$/, '').split('\n').map((l) => `[offline] ${l}`).join('\n') + '\n';
+}
+
+/** What the teacher sees of the student's simulator, sent with the steps. */
+function liveState() {
+  const { logText, logOpen, pm, po, ...base } = m.snapshot();
+  const check = m.waiting === 'ok' && m.registerToCheck && m.regs[m.registerToCheck]?.needCheck ? m.registerToCheck : '';
+  return {
+    ...base, tact: m.tact, running: m.running, waiting: m.waiting, check, current: m.current,
+    ceaLayout: m.ceaLayout, memCursor: m.memCursor, miniLog: m.miniLog.slice(-40), editMode,
+  };
+}
+
+/** Viewer: shows a state received from the student. */
+function applyLive(s) {
+  if (!s) return;
+  m.restore({ ...s, logText: m.logText, logOpen: true });
+  m.updateMark();
+  m.tact = s.tact ?? 0;
+  m.running = Boolean(s.running);
+  m.waiting = s.waiting ?? null;
+  m.registerToCheck = s.check ?? '';
+  if (s.check && m.regs[s.check]) m.regs[s.check].needCheck = true;
+  m.current = s.current ?? null;
+  m.ceaLayout = Boolean(s.ceaLayout);
+  m.memCursor = s.memCursor ?? null;
+  m.miniLog = s.miniLog ?? [];
+  studentEdit = Boolean(s.editMode);
 }
 
 // ------------------------------------------------------------------ CPU diagram
-const W = 160;
-const H = 34;
-const POS = {
-  LK: [45, 40], A: [295, 40], MQ: [545, 40], X: [795, 40],
-  RAP: [45, 140], LALU: [295, 140], RALU: [545, 140],
-  RBP: [45, 240], ALU: [420, 240],
-  BUS: [45, 330],
-  RR: [295, 385], LR: [545, 385], RI: [795, 385],
-  RBPS: [295, 480], RAPS: [545, 480], RAE: [795, 480],
-  L: [345, 445], R: [570, 445], SUMA: [457, 515],
-};
-const FLAG_POS = { ZNAK: [790, 150], XRO: [850, 150], OFF: [910, 150], MAV: [790, 250], IA: [850, 250], INT: [910, 250] };
-const VH = 560;
-
-const regEls = {};
-const flagEls = {};
-let rbpsEl;
-
-function place(node, [x, y], w = W, h = H) {
-  Object.assign(node.style, { left: `${x / 10}%`, top: `${(y / VH) * 100}%`, width: `${w / 10}%`, height: `${(h / VH) * 100}%` });
-}
+let regEls;
 
 function buildCPU() {
   const cpu = $('cpu');
+  cpuView = createCpu(cpu);
+  regEls = cpuView.regEls;
   for (const name of REG_NAMES) {
-    const input = el('input', { type: 'text', readonly: true, spellcheck: 'false', autocomplete: 'off', 'aria-label': name });
-    const cls = ['reg'];
-    if (name === 'ALU' || name === 'SUMA') cls.push('center');
-    if (name === 'L' || name === 'R') cls.push('right');
-    if (name === 'BUS') cls.push('bus');
-    if (name === 'RAPS') cls.push('ps');
-    const box = el('div', { class: cls.join(' ') }, el('span', { class: 'reg-name', text: name }), input);
-    place(box, POS[name]);
+    const { input } = regEls[name];
     input.addEventListener('focus', () => onRegFocus(name));
     input.addEventListener('blur', () => onRegBlur(name));
     input.addEventListener('keydown', (e) => onRegKey(e, name));
-    cpu.append(box);
-    regEls[name] = { box, input };
   }
-  rbpsEl = el('div', { class: 'reg ps' }, el('span', { class: 'reg-name', text: 'RBPS' }),
-    el('input', { type: 'text', readonly: true, tabindex: '-1', 'aria-label': 'RBPS' }));
-  place(rbpsEl, POS.RBPS);
-  cpu.append(rbpsEl);
   for (const name of FLAG_NAMES) {
-    const input = el('input', { type: 'text', readonly: true, maxlength: '1', 'aria-label': name });
-    const label = el('span', { class: 'reg-name', text: name });
-    const box = el('div', { class: 'flag' }, label, input);
-    place(box, FLAG_POS[name], 34, 34);
+    const { input } = cpuView.flagEls[name];
     input.addEventListener('focus', () => { if (editMode) input.select(); });
     input.addEventListener('input', () => {
       if (!editMode) return;
@@ -109,95 +152,33 @@ function buildCPU() {
       input.value = String(m.flags[name]);
       input.select();
     });
-    cpu.append(box);
-    flagEls[name] = { box, input, label };
   }
   cpu.addEventListener('dblclick', (e) => {
     if (e.target === cpu || e.target.closest('svg')) toggleEditMode();
   });
 }
-
-function line(x1, y1, x2, y2, cls = 'bus') {
-  return `<line class="${cls}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
-}
-const cx = (n) => POS[n][0] + W / 2;
-const cy = (n) => POS[n][1] + H / 2;
-const bottom = (n) => POS[n][1] + H;
-
-function trapezoid(from, to) {
-  const [fx, fy] = POS[from];
-  const [tx, ty] = POS[to];
-  return `<polygon class="alu" points="${fx},${fy + H} ${fx + W},${fy + H} ${tx + W},${ty} ${tx},${ty}"/>`;
-}
-
-function drawWires() {
-  const cea = m.ceaLayout;
-  const busX = 20;
-  let s = '';
-  s += `<polyline class="bus" points="${busX},548 ${busX},12 ${cx('X')},12"/>`;
-  for (const n of ['LK', 'A', 'MQ', 'X']) s += line(cx(n), 12, cx(n), cy(n));
-  for (const n of ['RAP', 'RBP', 'BUS']) s += line(busX, cy(n), cx(n), cy(n));
-  s += line(cx('BUS'), cy('BUS'), 1000, cy('BUS'));
-  for (const n of ['RR', 'LR', 'RI']) s += line(cx(n), cy('BUS'), cx(n), cy(n));
-  s += line(cx('A'), cy('A'), cx('LALU'), cy('LALU'));
-  s += line(cx('A'), cy('A'), cx('MQ'), cy('MQ'), 'bus thin');
-  s += trapezoid('LALU', 'ALU') + trapezoid('RALU', 'ALU');
-  s += line(cx('ALU'), cy('ALU'), cx('ALU'), cy('BUS'));
-  s += `<polyline class="bus" points="${cx('RALU')},${cy('RALU')} ${cx('RALU')},105 ${cx('X')},105 ${cx('X')},${cy('X')}"/>`;
-  if (cea) {
-    const raeY = POS.SUMA[1] + H / 2;
-    s += `<polyline class="bus" points="${cx('RR')},${cy('RR')} ${cx('RR')},${cy('L')} ${cx('L')},${cy('L')}"/>`;
-    s += `<polyline class="bus" points="${cx('RI')},${cy('RI')} ${cx('RI')},${cy('R')} ${cx('R')},${cy('R')}"/>`;
-    s += line(cx('LR'), cy('LR'), cx('LR'), cy('R'));
-    s += trapezoid('L', 'SUMA') + trapezoid('R', 'SUMA');
-    s += line(cx('SUMA'), raeY, cx('RAE'), raeY);
-  } else {
-    s += `<polyline class="bus" points="${cx('RAE')},${cy('RAE')} ${cx('RAE')},548 ${busX},548"/>`;
-  }
-  $('wires').innerHTML = s;
-}
-
-function regText(v) {
-  return `${hex(v)}h   ${v}`;
-}
+let cpuView;
 
 function isChecked(name) {
   return m.waiting === 'ok' && m.registerToCheck === name && m.regs[name].needCheck;
 }
 
 function isEditable(name) {
+  if (viewer) return false;
   return (editMode && !NOT_EDITABLE.includes(name)) || isChecked(name);
 }
 
-let wiresCea = null;
 function renderCPU() {
-  const cea = m.ceaLayout;
-  if (wiresCea !== cea) {
-    drawWires();
-    wiresCea = cea;
-    place(regEls.RAE.box, cea ? [POS.RAE[0], POS.SUMA[1]] : POS.RAE);
-  }
-  for (const name of REG_NAMES) {
-    const { box, input } = regEls[name];
-    const hidden = cea ? name === 'RAPS' : ['L', 'R', 'SUMA'].includes(name);
-    box.classList.toggle('hidden', hidden);
-    const editable = isEditable(name);
-    box.classList.toggle('check', isChecked(name));
-    box.classList.toggle('editable', editMode && editable);
-    input.readOnly = !editable;
-    input.tabIndex = editable ? 0 : -1;
-    if (document.activeElement !== input || !editable) input.value = regText(m.regs[name].value);
-    input.placeholder = regText(m.regs[name].value);
-  }
-  rbpsEl.classList.toggle('hidden', cea);
-  rbpsEl.querySelector('input').value = m.rbps;
-  for (const name of FLAG_NAMES) {
-    const { box, input, label } = flagEls[name];
-    label.textContent = m.flagLabel(name);
-    input.readOnly = !editMode;
-    box.classList.toggle('editable', editMode);
-    if (document.activeElement !== input) input.value = String(m.flags[name]);
-  }
+  cpuView.render({
+    regs: Object.fromEntries(REG_NAMES.map((n) => [n, m.regs[n].value])),
+    flags: m.flags,
+    rbps: m.rbps,
+    cea: m.ceaLayout,
+    checked: REG_NAMES.find(isChecked) ?? null,
+    editMode,
+    editable: isEditable,
+    flagLabel: (f) => m.flagLabel(f),
+  });
 }
 
 function onRegFocus(name) {
@@ -349,26 +330,34 @@ function renderCellDescription() {
 
 // ------------------------------------------------------------------ control panel
 const LOCKED_ACTIONS = ['editRegisters', 'clearRegisters', 'closeLog', 'loadPM', 'clearPM', 'loadPO', 'clearPO', 'editCell', 'clearCell', 'settings'];
+// Actions that change the simulation; blocked after the student finished a controlled attempt.
+const FINISHED_ACTIONS = ['editRegisters', 'clearRegisters', 'closeLog', 'loadPM', 'clearPM', 'loadPO', 'clearPO', 'editCell', 'clearCell', 'finish'];
 
 function render() {
   const tr = t();
   renderCPU();
   renderPMHighlight();
   renderPOHighlight();
-  $('infoMark').textContent = m.mark;
-  $('infoMark').classList.toggle('bad', m.mistakes >= m.marks.third);
+  $('infoMark').parentElement.hidden = m.mark == null;
+  $('infoMark').textContent = m.mark ?? '';
+  $('infoMark').classList.toggle('bad', m.mark === 2);
   $('infoMistakes').textContent = m.mistakes;
   $('infoTact').textContent = m.tact;
   $('infoCycle').textContent = m.cycle;
 
   const status = $('status');
   status.className = 'status';
-  if (editMode) {
+  if (editMode || studentEdit) {
     status.textContent = tr.editMode;
     status.classList.add('edit');
   } else if (m.running) {
     status.textContent = tr.startMode;
     status.classList.add('running');
+  } else if (viewer) {
+    status.textContent = tr.stopMode;
+  } else if (locked()) {
+    status.textContent = tr.finishedLocked;
+    status.classList.add('locked');
   } else if (!m.canSimulate) {
     status.textContent = tr.haltMode;
     status.classList.add('running');
@@ -377,19 +366,24 @@ function render() {
   const idle = !m.running && !editMode && !autoRunning;
   $('btnMacro').hidden = !idle;
   $('btnMicro').hidden = !idle;
-  $('btnMacro').disabled = $('btnMicro').disabled = !m.canSimulate;
-  $('btnOk').hidden = m.waiting !== 'ok' || autoRunning;
-  $('btnNext').hidden = m.waiting !== 'tact' || autoRunning;
+  $('btnMacro').disabled = $('btnMicro').disabled = !m.canSimulate || locked();
+  $('btnOk').hidden = m.waiting !== 'ok' || autoRunning || viewer;
+  $('btnNext').hidden = m.waiting !== 'tact' || autoRunning || viewer;
+  if (viewer) $('btnMacro').hidden = $('btnMicro').hidden = true;
   $('btnEndEdit').hidden = !editMode;
   $('autoBox').hidden = !settings.teacher;
   $('btnAuto').textContent = autoRunning ? tr.autoStop : tr.autoBtn;
   $('btnAuto').disabled = !autoRunning && (!idle || !m.canSimulate);
   $('menuEdit').textContent = editMode ? tr.endEditRegisters : tr.editRegisters;
   for (const b of document.querySelectorAll('.menu-list button')) {
-    b.disabled = (m.running || autoRunning) && LOCKED_ACTIONS.includes(b.dataset.action);
+    b.disabled = ((m.running || autoRunning) && LOCKED_ACTIONS.includes(b.dataset.action))
+      || (locked() && FINISHED_ACTIONS.includes(b.dataset.action));
   }
-  $('pmTable').classList.toggle('locked', m.running || autoRunning);
+  $('menuCloseLog').hidden = Boolean(attempt || viewer);
+  $('pmTable').classList.toggle('locked', m.running || autoRunning || locked());
   renderMiniLog();
+  renderAttemptBar();
+  attempt?.stateChanged();
 }
 
 let miniLogLength = -1;
@@ -415,7 +409,7 @@ function tickClock() {
 
 // ------------------------------------------------------------------ simulation driver
 function startCycle(micro) {
-  if (gen || editMode || autoRunning || !m.canSimulate) return;
+  if (gen || editMode || autoRunning || !m.canSimulate || locked()) return;
   closeMenus();
   if (!simStart) simStart = new Date();
   persist(); // state before the cycle, in case the page is reloaded mid-cycle
@@ -478,7 +472,7 @@ async function autoRun() {
     autoRunning = false;
     return;
   }
-  if (gen || editMode || !m.canSimulate) return;
+  if (gen || editMode || !m.canSimulate || locked()) return;
   const count = Math.max(1, Math.min(10000, parseInt($('autoCycles').value, 10) || 1));
   autoRunning = true;
   if (!simStart) simStart = new Date();
@@ -506,7 +500,7 @@ async function autoRun() {
 }
 
 function toggleEditMode() {
-  if (m.running || autoRunning) return;
+  if (m.running || autoRunning || (locked() && !editMode)) return;
   closeMenus();
   if (editMode) {
     const focused = REG_NAMES.find((n) => document.activeElement === regEls[n].input);
@@ -555,7 +549,7 @@ async function confirmDialog(text) {
 }
 
 async function editMicroOp(row, col) {
-  if (m.running || autoRunning) return;
+  if (m.running || autoRunning || locked()) return;
   const tr = t();
   const title = `PM[${row}] – ${PM_COLUMNS[col]}`;
   if (col === COL.NA) {
@@ -601,7 +595,7 @@ function applyMicroOp(row, col, value) {
 }
 
 async function editCell(addr = selectedPO) {
-  if (m.running || autoRunning) return;
+  if (m.running || autoRunning || locked()) return;
   selectPO(addr);
   const tr = t();
   const cell = m.po[addr];
@@ -721,7 +715,7 @@ async function editCell(addr = selectedPO) {
 }
 
 function clearCell() {
-  if (m.running) return;
+  if (m.running || locked()) return;
   m.setMemory(selectedPO, emptyCell());
   renderPORow(selectedPO);
   renderCellDescription();
@@ -772,13 +766,15 @@ const crlf = (text) => text.replace(/\r?\n/g, '\r\n');
 
 function downloadLog() {
   closeMenus();
+  if (attempt) return downloadAttemptLog();
   const tr = t();
-  const summary = `\n${tr.mark}: ${m.mark}   ${tr.mistakes}: ${m.mistakes}   ${tr.cycle}: ${m.cycle}\n`;
+  const mark = m.mark == null ? '' : `${tr.mark}: ${m.mark}   `;
+  const summary = `\n${mark}${tr.mistakes}: ${m.mistakes}   ${tr.cycle}: ${m.cycle}\n`;
   download(`LabZSK_${stamp()}.log`, crlf(m.logText + summary));
 }
 
 async function closeLog() {
-  if (m.running || !(await confirmDialog(t().areYouSureCloseLog))) return;
+  if (attempt || m.running || !(await confirmDialog(t().areYouSureCloseLog))) return;
   download(`LabZSK_${stamp()}.log`, crlf(m.closeLog()));
   m.log(`${t().programStart} ${new Date().toLocaleString()}\n`);
   simStart = null;
@@ -855,12 +851,13 @@ function pickFile(accept) {
 }
 
 async function loadPMFile() {
-  if (m.running) return;
+  if (m.running || locked()) return;
   closeMenus();
   const file = await pickFile('.pm');
   if (!file) return;
   try {
     const rows = loadPM(file.bytes);
+    m.log(`\n${t().fileLoaded}: ${file.name}\n`);
     rows.forEach((row, r) => {
       for (let c = 1; c < 12; c++) if (m.pm[r][c] !== row[c]) m.setMicroOp(r, c, row[c]);
       renderPMRow(r);
@@ -874,12 +871,13 @@ async function loadPMFile() {
 }
 
 async function loadPOFile() {
-  if (m.running) return;
+  if (m.running || locked()) return;
   closeMenus();
   const file = await pickFile('.po');
   if (!file) return;
   try {
     const cells = loadPO(file.bytes);
+    m.log(`\n${t().fileLoaded}: ${file.name}\n`);
     cells.forEach((cell, r) => {
       const old = m.po[r];
       if (old.bin !== cell.bin || old.type !== cell.type) m.setMemory(r, cell);
@@ -894,7 +892,7 @@ async function loadPOFile() {
 }
 
 async function clearPM() {
-  if (m.running || !(await confirmDialog(t().areYouSureClearTable))) return;
+  if (m.running || locked() || !(await confirmDialog(t().areYouSureClearTable))) return;
   const empty = emptyPM();
   empty.forEach((row, r) => {
     for (let c = 1; c < 12; c++) if (m.pm[r][c] !== '') m.setMicroOp(r, c, '');
@@ -904,7 +902,7 @@ async function clearPM() {
 }
 
 async function clearPO() {
-  if (m.running || !(await confirmDialog(t().areYouSureClearTable))) return;
+  if (m.running || locked() || !(await confirmDialog(t().areYouSureClearTable))) return;
   emptyPO().forEach((cell, r) => {
     if (m.po[r].bin !== '') m.setMemory(r, cell);
     renderPORow(r);
@@ -914,9 +912,9 @@ async function clearPO() {
 }
 
 function clearRegisters() {
-  if (m.running || autoRunning) return;
+  if (m.running || autoRunning || locked()) return;
   if (editMode) toggleEditMode();
-  m.clearRegisters();
+  m.clearRegisters({ keepScore: Boolean(attempt) });
   persist();
   render();
 }
@@ -928,30 +926,22 @@ async function showSettings() {
   lang.value = settings.lang;
   const skin = el('select', {}, ...tr.skins.map((s, i) => el('option', { value: String(i), text: s })));
   skin.value = String(settings.skin);
-  const num = (v, min = 1) => el('input', { type: 'number', min: String(min), max: '1000', value: String(v) });
-  const first = num(settings.marks.first);
-  const second = num(settings.marks.second);
-  const third = num(settings.marks.third);
   const teacher = el('input', { type: 'checkbox', checked: settings.teacher });
-  const delay = num(settings.delay, 0);
+  const delay = el('input', { type: 'number', min: '0', max: '1000', value: String(settings.delay) });
+  // a lab task has no automatic execution
+  const free = !attempt && !viewer;
   const body = el('div', { class: 'settings' },
     el('div', { class: 'form-row' }, el('label', { text: tr.langLabel }), lang),
     el('div', { class: 'form-row' }, el('label', { text: tr.skinLabel }), skin),
-    el('fieldset', {}, el('legend', { text: tr.marksLabel }),
-      el('div', { class: 'form-row' }, el('label', { text: tr.markFor(4) }), first, el('label', { text: tr.markFor(3) }), second,
-        el('label', { text: tr.markFor(2) }), third)),
-    el('div', { class: 'form-row' }, el('label', {}, teacher, ` ${tr.teacherMode}`)),
-    el('div', { class: 'form-row' }, el('label', { text: tr.autoDelay }), delay),
-    el('p', { class: 'error', text: '' }));
+    free ? el('div', { class: 'form-row' }, el('label', {}, teacher, ` ${tr.teacherMode}`)) : null,
+    free ? el('div', { class: 'form-row' }, el('label', { text: tr.autoDelay }), delay) : null);
   if ((await dialog(tr.settings.replace('…', ''), body, okCancel())) !== 'ok') return;
-  const marks = [first, second, third].map((i) => Math.max(1, parseInt(i.value, 10) || 1)).sort((a, b) => a - b);
-  settings.marks = { first: marks[0], second: marks[1], third: marks[2] };
   settings.skin = Number(skin.value);
-  settings.delay = Math.max(0, parseInt(delay.value, 10) || 0);
-  if (teacher.checked && !settings.teacher) m.log(`${tr.notForStudents}\n`);
-  settings.teacher = teacher.checked;
-  m.marks = { ...settings.marks };
-  m.updateMark();
+  if (free) {
+    settings.delay = Math.max(0, parseInt(delay.value, 10) || 0);
+    if (teacher.checked && !settings.teacher) m.log(`${tr.notForStudents}\n`);
+    settings.teacher = teacher.checked;
+  }
   setLanguage(lang.value);
   persist();
 }
@@ -959,6 +949,197 @@ async function showSettings() {
 async function showText(title, paragraphs) {
   closeMenus();
   await dialog(title, el('div', { class: 'about' }, ...paragraphs.map((p) => el('p', { text: p }))), closeOnly());
+}
+
+// ------------------------------------------------------------------ lab task and teacher's view
+const taskTitle = (s) => t().taskTitle(s.course, s.session, s.task);
+
+function renderAttemptBar() {
+  if (!attempt && !viewer) return;
+  const tr = t();
+  const bar = $('attemptBar');
+  bar.hidden = false;
+  $('btnFinish').hidden = true;
+  $('btnDownloadFinal').hidden = true;
+  const conn = $('connState');
+  if (viewer) {
+    const a = view.attempt;
+    bar.classList.toggle('finished', a.status === 'finished');
+    bar.classList.add('viewer');
+    $('attemptTask').textContent = taskTitle(a);
+    $('attemptStudent').textContent = a.user;
+    $('attemptNote').textContent = `${tr.viewerNote}${a.status === 'finished' ? ` ${tr.viewerFinished}` : ''}`;
+    const on = a.status === 'active' && a.online;
+    conn.className = `conn ${on ? 'online' : 'offline'}`;
+    conn.textContent = a.status === 'finished' ? tr.viewerFinished : on ? tr.viewerOnline : tr.viewerOffline(a.lastSeen ? new Date(a.lastSeen).toLocaleTimeString() : '—');
+    return;
+  }
+  const done = attempt.finished;
+  bar.classList.toggle('finished', done);
+  $('attemptTask').textContent = taskTitle(attempt.meta);
+  $('attemptStudent').textContent = attempt.meta.user;
+  $('attemptNote').textContent = done ? `${tr.finishedBanner} ${tr.finishedHint}` : tr.oneAttempt;
+  $('btnFinish').hidden = done;
+  $('btnFinish').disabled = Boolean(attempt.blocked);
+  $('btnDownloadFinal').hidden = !done;
+  conn.className = `conn ${attempt.connection}`;
+  const label = { online: tr.connOnline, offline: tr.connOffline, connecting: tr.connConnecting }[attempt.connection];
+  conn.textContent = attempt.unsent && attempt.connection === 'offline' ? `${label} (${tr.unsent(attempt.unsent)})` : label;
+}
+
+/** Links to other unfinished tasks held by this browser (each task has its own state). */
+async function renderOtherTasks() {
+  if (blocked || viewer) return;
+  const tr = t();
+  const others = (await localSessions()).filter((s) => !s.finished && s.key !== attempt?.key && s.link);
+  const box = attempt ? $('attemptOthers') : $('freeBar');
+  box.hidden = others.length === 0;
+  box.replaceChildren(el('span', { text: attempt ? tr.otherUnfinished : tr.unfinishedTasks }),
+    ...others.map((s) => el('a', { href: s.link, text: taskTitle(s) })));
+}
+
+function showBlocker(reason) {
+  const tr = t();
+  const [title, text] = tr.blocked[reason] ?? tr.blocked.invalid;
+  autoRunning = false;
+  gen = null;
+  $('blockerTitle').textContent = title;
+  $('blockerText').textContent = text;
+  const buttons = [];
+  if (['other-tab', 'cleared', 'not-configured', 'view-offline'].includes(reason)) {
+    buttons.push(el('button', { class: 'btn primary', text: reason === 'cleared' ? tr.startAgain : tr.tryAgain, onclick: () => location.reload() }));
+  }
+  // work done in this browser can still be saved (e.g. a task started offline and refused later)
+  if (attempt && m.logText && reason !== 'cleared') {
+    buttons.push(el('button', { class: 'btn', text: tr.emergencySave, onclick: saveEmergencyLog }));
+  }
+  if (!viewer && !viewId) buttons.push(el('a', { class: 'btn', href: './', text: tr.freeModeLink }));
+  $('blockerButtons').replaceChildren(...buttons);
+  $('blocker').hidden = false;
+  render();
+}
+
+async function finishWork() {
+  if (!attempt || attempt.finished || attempt.blocked) return;
+  closeMenus();
+  if (!(await confirmDialog(t().finishConfirm))) return;
+  autoRunning = false;
+  if (gen) {
+    gen.return();
+    gen = null;
+  }
+  if (editMode) toggleEditMode();
+  persist();
+  await attempt.finish();
+  render();
+  await downloadAttemptLog();
+}
+
+/** Copy of the browser's log saved when the server cannot add its fingerprint; marked as unsigned. */
+function emergencyLog() {
+  const a = attempt.meta;
+  const meta = {
+    format: 'labzsk-log', v: 2, signed: false, reason: 'no-connection',
+    user: a.user, course: a.course, session: a.session, task: a.task,
+    status: attempt.finished ? 'finished' : 'in-progress', generatedAt: new Date().toISOString(),
+    offlineStart: Boolean(a.offlineStart), mistakes: m.mistakes, unsentSteps: attempt.unsent,
+  };
+  return [
+    m.logText.replace(/\n$/, ''),
+    '',
+    '================ LabZSK – LOG AWARYJNY, NIEPODPISANY (zapisany bez połączenia z serwerem LabZSK) ================',
+    '!!! Ten log NIE ma odcisku serwera i NIE jest zweryfikowany. Student ma obowiązek poinformować nauczyciela.',
+    `Student (userId): ${a.user}`,
+    `Kurs / zajęcia / zadanie: ${a.course} / ${a.session} / ${a.task}`,
+    `Zapisano:      ${new Date().toLocaleString('pl-PL')}`,
+    `Błędy:         ${m.mistakes}`,
+    `Niewysłane:    kroki, które nie dotarły do serwera: ${attempt.unsent}${a.offlineStart ? ' (zadanie rozpoczęte bez połączenia)' : ''}`,
+    `#LABZSK ${JSON.stringify(meta)}`,
+    '',
+  ].join('\n');
+}
+
+function logFileName(suffix = '') {
+  const a = attempt.meta;
+  return `LabZSK_${a.user}_${a.course}-${a.session}-${a.task}${suffix}.log`;
+}
+
+function saveEmergencyLog() {
+  download(logFileName('_AWARYJNY_NIEPODPISANY'), crlf(emergencyLog()));
+  toast(t().emergencySaved, true);
+}
+
+async function downloadAttemptLog() {
+  const tr = t();
+  if (!attempt.finished) {
+    toast(tr.logAfterFinish);
+    return;
+  }
+  try {
+    download(logFileName(), await attempt.finalLog());
+    toast(tr.signedSaved);
+  } catch (e) {
+    if (attempt.blocked) return;
+    if (e.status && e.status < 500) {
+      toast(e.message, true);
+      return;
+    }
+    render();
+    const res = await dialog(tr.emergencyTitle, el('div', { class: 'about' }, ...tr.emergencyText.map((p) => el('p', { text: p }))), [
+      { label: tr.cancel, value: '' },
+      { label: tr.emergencySave, value: 'emergency' },
+      { label: tr.tryAgain, value: 'retry', primary: true },
+    ]);
+    if (res === 'retry') await downloadAttemptLog();
+    if (res === 'emergency') saveEmergencyLog();
+  }
+}
+
+function startAttempt() {
+  const tr = t();
+  attempt.onChange((e) => {
+    if (e.type === 'connection' && e.after === 'offline' && e.before === 'online') toast(t().connLost, true);
+    if (e.type === 'synced') toast(t().connBack(e.offline));
+    if (e.type === 'blocked') showBlocker(e.reason);
+    render();
+  });
+  attempt.start(() => ({ mistakes: m.mistakes, cycle: m.cycle, live: liveState(), pm: m.pm, po: m.po }));
+  if (!attempt.finished) {
+    const now = new Date().toLocaleString();
+    const offline = attempt.connection === 'offline' ? ` – ${tr.startedOffline}` : '';
+    if (!m.logText) m.log(`${tr.attemptStart}: ${taskTitle(attempt.meta)} – userId ${attempt.meta.user} (${now})${offline}\n${tr.browser}: ${navigator.userAgent}\n\n`);
+    else m.log(`\n--- ${tr.pageReloaded} (${now}) ---\n`);
+    persist();
+  }
+  if (attempt.connection === 'offline') toast(tr.connLost, true);
+}
+
+/** Teacher's view: follows the student's state and log through the panel's live stream. */
+function startViewer() {
+  const stream = new EventSource('../api/stream');
+  stream.addEventListener('state', (e) => {
+    const { id, state } = JSON.parse(e.data);
+    if (id !== viewId) return;
+    applyLive(state);
+    if (state.pm) for (let r = 0; r < 256; r++) renderPMRow(r);
+    if (state.po) {
+      for (let r = 0; r < 256; r++) renderPORow(r);
+      renderCellDescription();
+    }
+    miniLogLength = -1;
+    render();
+  });
+  stream.addEventListener('attempt', (e) => {
+    const { attempt: a, events } = JSON.parse(e.data);
+    if (a.id !== viewId) return;
+    view.attempt = a;
+    for (const ev of events) m.logText += eventText(ev);
+    render();
+  });
+  stream.addEventListener('removed', (e) => {
+    if (JSON.parse(e.data).id === viewId) showBlocker('cleared');
+  });
+  setInterval(render, 5000); // connection state of the student
 }
 
 // ------------------------------------------------------------------ misc
@@ -990,6 +1171,7 @@ function setLanguage(lang) {
   $('cpu').dataset.skin = String(settings.skin);
   miniLogLength = -1;
   renderCellDescription();
+  renderOtherTasks();
   render();
 }
 
@@ -1013,6 +1195,7 @@ const ACTIONS = {
   savePO: () => { closeMenus(); download(`LabZSK_${stamp()}.po`, savePO(m.po)); },
   printPO: () => showListing(t().poTitle, listingPO(), `PO_${stamp()}.txt`),
   clearPO,
+  finish: finishWork,
   editCell: () => { closeMenus(); editCell(); },
   clearCell: () => { closeMenus(); clearCell(); },
   help: () => showText(t().menuHelp, t().helpText),
@@ -1052,11 +1235,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('beforeunload', (e) => {
-  if (m.running || autoRunning) e.preventDefault();
+  if (!viewer && (m.running || autoRunning)) e.preventDefault();
 });
 
 // ------------------------------------------------------------------ start
-if (!m.logText) m.log(`${strings(settings.lang).programStart} ${appStart.toLocaleString()}\n${strings(settings.lang).browser}: ${navigator.userAgent}\n\n`);
+if (!attempt && !blocked && !viewer && !m.logText) m.log(`${strings(settings.lang).programStart} ${appStart.toLocaleString()}\n${strings(settings.lang).browser}: ${navigator.userAgent}\n\n`);
 buildCPU();
 buildPM();
 buildPO();
@@ -1064,3 +1247,8 @@ selectPO(0);
 setLanguage(settings.lang);
 tickClock();
 setInterval(tickClock, 1000);
+if (attempt) startAttempt();
+if (viewer) startViewer();
+if (blocked) showBlocker(blocked.blocked);
+// offline copy of the page (needs HTTPS or localhost; elsewhere the browser does not allow it)
+if (!viewId && 'serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
