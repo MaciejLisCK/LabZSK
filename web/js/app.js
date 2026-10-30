@@ -386,10 +386,11 @@ function render() {
   attempt?.stateChanged();
 }
 
-let miniLogLength = -1;
+let miniLogLast = null; // newest entry drawn; each entry is a new object, so this also tells cycles of equal length apart
 function renderMiniLog() {
-  if (miniLogLength === m.miniLog.length && m.miniLog.length > 0) return;
-  miniLogLength = m.miniLog.length;
+  const last = m.miniLog.at(-1) ?? null;
+  if (last && last === miniLogLast) return;
+  miniLogLast = last;
   const list = $('miniLog');
   list.replaceChildren(...m.miniLog.map((e) => el('li', {},
     el('span', { class: 'tact', text: e.tact }), el('span', { class: 'mnemo', text: e.mnemo }), e.description)));
@@ -1126,7 +1127,7 @@ function startViewer() {
       for (let r = 0; r < 256; r++) renderPORow(r);
       renderCellDescription();
     }
-    miniLogLength = -1;
+    miniLogLast = null;
     render();
   });
   stream.addEventListener('attempt', (e) => {
@@ -1169,7 +1170,7 @@ function setLanguage(lang) {
   poHead[0].textContent = tr.address;
   poHead[1].textContent = tr.content;
   $('cpu').dataset.skin = String(settings.skin);
-  miniLogLength = -1;
+  miniLogLast = null;
   renderCellDescription();
   renderOtherTasks();
   render();
