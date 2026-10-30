@@ -149,6 +149,38 @@ test('the mistake count never goes down, even if a client reports a lower one', 
   assert.equal(verifyLog(ctx.attempts.finalLog(attemptId), SECRET, { user: '41' }).meta.mistakes, 2);
 });
 
+test('a link can carry the encrypted name: it is signed, kept for the panel and never returned to the student', async () => {
+  const enc = 'aXY.a2V5.ZGF0YQ';
+  const p = { user: '70', course: '8', session: '11', task: '1', enc };
+  const sig = linkSignature(SECRET, p);
+  assert.equal((await open({ ...p, enc: 'aXY.a2V5.aW5uZQ', sig })).status, 403);
+  assert.equal((await open({ user: '70', course: '8', session: '11', task: '1', sig })).status, 403);
+  assert.equal((await open({ ...p, enc: 'a b', sig })).status, 400);
+  const first = await open({ ...p, sig });
+  assert.equal(first.status, 200);
+  assert.equal(JSON.stringify(first.body).includes(enc), false);
+  assert.equal((await call('GET', `/panel/api/attempts/${first.body.attemptId}`)).body.attempt.enc, enc);
+
+  const changed = { ...p, enc: 'aXY.a2V5.bm93ZQ' };
+  await open({ ...changed, sig: linkSignature(SECRET, changed), sessionKey: first.body.sessionKey });
+  assert.equal((await call('GET', `/panel/api/attempts/${first.body.attemptId}`)).body.attempt.enc, changed.enc);
+
+  const empty = { user: '71', course: '8', session: '11', task: '1', enc: '' };
+  const none = await open({ ...empty, sig: linkSignature(SECRET, empty) });
+  assert.equal(none.status, 200);
+  assert.equal((await call('GET', `/panel/api/attempts/${none.body.attemptId}`)).body.attempt.enc, null);
+});
+
+test('a link can carry the pseudonym: it is signed in a fixed order and shown in the panel', async () => {
+  const p = { user: '72', course: '8', session: '11', task: '1', pseudonym: 'S-QGT8', enc: 'aXY.a2V5.ZGF0YQ' };
+  const sig = linkSignature(SECRET, p);
+  assert.equal((await open({ ...p, pseudonym: 'S-AAAA', sig })).status, 403);
+  assert.equal((await open({ ...p, pseudonym: 'S QGT8', sig })).status, 400);
+  const first = await open({ ...p, sig });
+  assert.equal(first.status, 200);
+  assert.equal((await call('GET', `/panel/api/attempts/${first.body.attemptId}`)).body.attempt.pseudonym, 'S-QGT8');
+});
+
 test('unsigned emergency log is recognised and never valid', () => {
   const meta = { format: 'labzsk-log', v: 2, signed: false, user: '1', course: '8', session: '11', task: '1' };
   assert.equal(verifyLog(`MAKRO\n#LABZSK ${JSON.stringify(meta)}\n`, SECRET).result, 'unsigned');

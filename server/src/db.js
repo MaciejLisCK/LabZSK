@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-const VERSION = 2;
+const VERSION = 3;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS attempts (
@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS attempts (
   cycles INTEGER NOT NULL DEFAULT 0,
   offline_events INTEGER NOT NULL DEFAULT 0,
   state TEXT,
+  enc TEXT,
+  pseudonym TEXT,
   UNIQUE (user_id, course, lab_session, task)
 );
 CREATE TABLE IF NOT EXISTS events (
@@ -61,7 +63,8 @@ export function openDatabase(dataDir) {
   const version = db.prepare('PRAGMA user_version').get().user_version;
   if (version < VERSION) {
     // version 1 (one-time tokens) held only test data; teacher accounts are kept
-    db.exec('DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS audit; DROP TABLE IF EXISTS tokens; DROP TABLE IF EXISTS attempts;');
+    if (version < 2) db.exec('DROP TABLE IF EXISTS events; DROP TABLE IF EXISTS audit; DROP TABLE IF EXISTS tokens; DROP TABLE IF EXISTS attempts;');
+    else db.exec('ALTER TABLE attempts ADD COLUMN enc TEXT; ALTER TABLE attempts ADD COLUMN pseudonym TEXT');
     db.exec(`PRAGMA user_version = ${VERSION}`);
   }
   db.exec(SCHEMA);

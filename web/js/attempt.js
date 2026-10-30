@@ -210,7 +210,7 @@ export class Attempt {
   /** A task started without the server is registered when the connection is back. */
   async register() {
     const m = this.meta;
-    const res = await post('api/attempt/open', { user: m.user, course: m.course, session: m.session, task: m.task, sig: m.sig, offlineStart: true, startedAt: m.startedAt });
+    const res = await post('api/attempt/open', { user: m.user, course: m.course, session: m.session, task: m.task, pseudonym: m.pseudonym, enc: m.enc, sig: m.sig, offlineStart: true, startedAt: m.startedAt });
     m.attemptId = res.attemptId;
     m.sessionKey = res.sessionKey;
     this.save();
@@ -306,6 +306,8 @@ export async function bootAttempt() {
   if (!q.has('user') && !q.has('sig')) return null;
   const p = Object.fromEntries([...LINK_PARAMS, 'sig'].map((k) => [k, q.get(k) ?? '']));
   if (Object.values(p).some((v) => !/^[A-Za-z0-9_-]{1,64}$/.test(v))) return { blocked: 'invalid' };
+  if (q.has('pseudonym')) p.pseudonym = q.get('pseudonym');
+  if (q.has('enc')) p.enc = q.get('enc'); // encrypted for the teacher; only passed on, signed with the link
   const key = LINK_PARAMS.map((k) => p[k]).join('/');
   if (await otherTabHas(key)) return { blocked: 'other-tab' };
 

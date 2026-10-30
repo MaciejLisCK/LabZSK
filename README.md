@@ -51,6 +51,14 @@ https://<adres LabZSK>/?user=17&course=8&session=11&task=26&sig=<HMAC>
 
 `sig` = HMAC-SHA256(wspólny sekret, `user=17&course=8&session=11&task=26`) zapisany szesnastkowo (64 znaki). Wartości: litery, cyfry, `-` i `_` (do 64 znaków). Wspólny sekret ustawia się w panelu (Ustawienia) i wpisuje ten sam w ustawieniach Lab Managera.
 
+Szablon linku w Lab Managerze powinien mieć też `&pseudonym={pseudonym}&enc={encName}` tuż przed `&sig={sig}`:
+
+```
+https://<adres LabZSK>/?user={userId}&course={courseId}&session={sessionId}&task={taskId}&pseudonym={pseudonym}&enc={encName}&sig={sig}
+```
+
+`enc` to szyfrogram danych osobowych studenta (`iv.key.data` w base64url), a `pseudonym` to jawny pseudonim (np. `S-QGT8`); oba są podpisane razem z resztą linku w tej kolejności: `user=17&course=8&session=11&task=26&pseudonym=S-QGT8&enc=…`. Serwer LabZSK nie umie go odczytać i przechowuje go bez zmian. Odszyfrowuje go tylko przeglądarka nauczyciela: plik kopii klucza z Lab Managera wczytany w panelu (Ustawienia) trafia jako nieeksportowalny klucz do IndexedDB tej przeglądarki i nigdy nie jest wysyłany. Bez klucza panel pokazuje pseudonim, a gdy link go nie ma, userId. Web Crypto działa tylko na `https://` i `localhost`, więc odszyfrowanie wymaga panelu pod takim adresem.
+
 Zasady wejścia: brak podejścia → nowe; ta sama przeglądarka → kontynuacja; inna przeglądarka lub druga karta → blokada; zakończone → odmowa. Kolejne podejście: nauczyciel klika „Wyczyść podejście”. Bez serwera zadanie można zacząć i kontynuować – kroki czekają w przeglądarce (IndexedDB) i są dosyłane jako offline.
 
 ### Odcisk logu i skrypt sprawdzający

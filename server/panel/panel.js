@@ -1,6 +1,7 @@
 // LabZSK teacher panel: attempts, their logs and simulator state live, the shared secret.
 
 import { createCpu } from './sim/js/cpu-view.js';
+import { clearKey, cryptoAvailable, loadKey, personLabel, personOf, saveKey } from './keys.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...children) => {
@@ -32,6 +33,8 @@ const states = new Map(); // attemptId -> live simulator state
 let selected = null;
 let clockOffset = 0;
 let liveMode = 'log';
+let privateKey = null; // only in this browser; never sent to the server
+const people = new Map(); // enc value of an attempt -> decrypted person, null when the key does not fit
 
 // ------------------------------------------------------------------ helpers
 async function api(path, { method = 'GET', body, raw = false, text } = {}) {
@@ -63,6 +66,10 @@ function ago(ms) {
   return dateTime(ms);
 }
 const task = (a) => `${a.course} / ${a.session} / ${a.task}`;
+const person = (a) => (a.enc && people.get(a.enc)) || null;
+const pseudonym = (a) => (a.pseudonym ? `Student ${a.pseudonym}` : null);
+const studentName = (a) => (person(a) ? personLabel(person(a)) : pseudonym(a) ?? a.user);
+const studentTitle = (a) => (person(a) ? studentName(a) : pseudonym(a) ?? `Student ${a.user}`);
 
 let toastTimer;
 function toast(text, bad = false) {
@@ -151,7 +158,7 @@ function visible() {
   const q = $('search').value.trim().toLowerCase();
   return [...attempts.values()]
     .filter((a) => f === 'all' || a.status === f)
-    .filter((a) => !q || `${a.user} ${a.course} ${a.session} ${a.task} ${task(a)}`.toLowerCase().includes(q))
+    .filter((a) => !q || `${a.user} ${studentName(a)} ${person(a)?.email ?? ''} ${a.pseudonym ?? ''} ${a.course} ${a.session} ${a.task} ${task(a)}`.toLowerCase().includes(q))
     .sort((x, y) => (y.lastSeen ?? y.createdAt) - (x.lastSeen ?? x.createdAt));
 }
 
@@ -162,7 +169,7 @@ function connCell(a) {
 
 function renderList() {
   const rows = visible().map((a) => el('tr', { class: a.id === selected ? 'sel' : '', onclick: () => select(a.id) },
-    el('td', { text: a.user }),
+    el('td', { text: studentName(a) }, studentName(a) !== a.user ? el('span', { class: 'muted small', text: ` (${a.user})` }) : null),
     el('td', { text: task(a) }),
     el('td', {}, el('span', { class: `badge ${a.status}`, text: STATUS[a.status] ?? a.status }),
       a.offlineStart ? el('span', { class: 'badge warn', text: 'start offline' }) : null),
@@ -183,7 +190,77 @@ async function loadList() {
   renderList();
   renderTiles();
   if (selected && attempts.has(selected)) renderDetailHead();
+  decryptPeople();
 }
+
+// ------------------------------------------------------------------ student names (private key in this browser)
+function renderPeople() {
+  renderList();
+  renderTiles();
+  if (selected && attempts.has(selected)) renderDetailHead();
+  renderKeyState();
+}
+
+async function decryptPeople() {
+  if (!privateKey) return;
+  const todo = [...new Set([...attempts.values()].map((a) => a.enc))].filter((t) => t && !people.has(t));
+  if (!todo.length) return;
+  const key = privateKey;
+  const found = await Promise.all(todo.map((t) => personOf(key, t)));
+  if (key !== privateKey) return;
+  todo.forEach((t, i) => people.set(t, found[i]));
+  renderPeople();
+}
+
+function renderKeyState() {
+  const available = cryptoAvailable();
+  const tokens = [...new Set([...attempts.values()].map((a) => a.enc))].filter(Boolean);
+  const read = tokens.filter((t) => people.get(t)).length;
+  let text = 'brak w tej przeglądarce – widoczne są pseudonimy lub userId';
+  if (!available) text = 'niedostępny – przeglądarka odszyfrowuje dane tylko na stronie https:// lub localhost';
+  else if (privateKey) text = `wczytany w tej przeglądarce (odczytano ${read} z ${tokens.length})${tokens.length && !read ? ' – klucz nie pasuje do danych' : ''}`;
+  $('keyState').textContent = text;
+  $('keyForm').file.disabled = !available;
+  $('keyForm').querySelector('button:not([type])').disabled = !available;
+  $('keyClear').disabled = !privateKey;
+}
+
+async function initKey() {
+  try {
+    privateKey = await loadKey();
+  } catch {
+    privateKey = null;
+  }
+  renderKeyState();
+  await decryptPeople();
+}
+
+$('keyForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('keyError').textContent = '';
+  try {
+    privateKey = await saveKey(await e.target.file.files[0].text());
+    people.clear();
+    e.target.reset();
+    renderPeople();
+    await decryptPeople();
+    toast('Klucz wczytany w tej przeglądarce.');
+  } catch (err) {
+    $('keyError').textContent = err.message;
+  }
+});
+
+$('keyClear').addEventListener('click', async () => {
+  if (!(await confirmBox('Usunąć klucz prywatny z tej przeglądarki? Nazwiska znikną, dopóki nie wczytasz go ponownie.', 'Usuń', true))) return;
+  try {
+    await clearKey();
+    privateKey = null;
+    people.clear();
+    renderPeople();
+  } catch (e) {
+    $('keyError').textContent = e.message;
+  }
+});
 
 // ------------------------------------------------------------------ detail
 let detailPre = null;
@@ -216,6 +293,8 @@ function renderDetailHead() {
   const head = $('detailHead');
   if (!a || !head) return;
   const facts = [
+    ...(studentName(a) !== a.user ? [['Student (userId)', a.user]] : []),
+    ...(person(a) ? [['E-mail', person(a).email], ...(a.pseudonym ? [['Pseudonim', a.pseudonym]] : [])] : []),
     ['Kurs / zajęcia / zadanie', task(a)],
     ['Status', STATUS[a.status]],
     ['Połączenie', a.status === 'active' ? (a.online ? 'połączony' : `brak kontaktu (ostatnio ${ago(a.lastSeen)})`) : '—'],
@@ -225,7 +304,7 @@ function renderDetailHead() {
     ['Kroki', `${a.events}${a.offlineEvents ? ` (w tym ${a.offlineEvents} offline)` : ''}`],
   ];
   head.replaceChildren(
-    el('h2', { text: `Student ${a.user}` }),
+    el('h2', { text: studentTitle(a) }),
     el('dl', { class: 'facts' }, ...facts.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: String(v) })])),
     el('div', { class: 'actions' },
       el('button', { class: 'btn primary', text: 'Pełny widok', onclick: () => openFullView(a.id) }),
@@ -245,7 +324,7 @@ async function downloadLog(a) {
 }
 
 async function clearAttempt(a) {
-  const text = `Wyczyścić podejście studenta ${a.user} (${task(a)})? Podejście i jego log zostaną usunięte, a student po ponownym otwarciu linku zacznie zadanie od nowa. Tego nie można cofnąć.`;
+  const text = `Wyczyścić podejście studenta ${studentName(a)} (${task(a)})? Podejście i jego log zostaną usunięte, a student po ponownym otwarciu linku zacznie zadanie od nowa. Tego nie można cofnąć.`;
   if (!(await confirmBox(text, 'Wyczyść', true))) return;
   try {
     await api(`attempts/${a.id}`, { method: 'DELETE' });
@@ -287,7 +366,7 @@ function tileState(s) {
 
 function updateTile(t, a) {
   const s = states.get(a.id);
-  t.head.replaceChildren(el('strong', { text: `Student ${a.user}` }), connCell(a));
+  t.head.replaceChildren(el('strong', { text: studentTitle(a) }), connCell(a));
   t.meta.textContent = `${task(a)} · błędy: ${a.mistakes}${liveMode === 'cpu' ? ` · ${tileState(s)}` : ` · cykle: ${a.cycles}`}`;
   if (t.mode !== liveMode) {
     t.mode = liveMode;
@@ -311,7 +390,7 @@ function updateTile(t, a) {
 
 function renderTiles() {
   if ($('tab-live').hidden) return;
-  const list = [...attempts.values()].filter((a) => a.status === 'active').sort((x, y) => x.user.localeCompare(y.user, 'pl', { numeric: true }));
+  const list = [...attempts.values()].filter((a) => a.status === 'active').sort((x, y) => studentName(x).localeCompare(studentName(y), 'pl', { numeric: true }));
   for (const [id, t] of tiles) {
     if (!list.some((a) => a.id === id)) {
       t.root.remove();
@@ -392,6 +471,7 @@ function connectStream() {
     renderList();
     renderTiles();
     if (attempt.id === selected) renderDetailHead();
+    decryptPeople();
   });
   stream.addEventListener('state', (e) => {
     const { id, state } = JSON.parse(e.data);
@@ -519,6 +599,7 @@ $('search').addEventListener('input', renderList);
 
 function showLogin() {
   stream?.close();
+  people.clear();
   $('appView').hidden = true;
   $('loginView').hidden = false;
   $('loginForm').login.focus();
@@ -531,6 +612,7 @@ async function showApp() {
   $('loginView').hidden = true;
   $('appView').hidden = false;
   if (!me.secret.configured) showTab('settings');
+  await initKey();
   connectStream();
 }
 
