@@ -67,8 +67,9 @@ function ago(ms) {
 }
 const task = (a) => `${a.course} / ${a.session} / ${a.task}`;
 const person = (a) => (a.enc && people.get(a.enc)) || null;
-const studentName = (a) => (person(a) ? personLabel(person(a)) : a.user);
-const studentTitle = (a) => (person(a) ? studentName(a) : `Student ${a.user}`);
+const pseudonym = (a) => (a.pseudonym ? `Student ${a.pseudonym}` : null);
+const studentName = (a) => (person(a) ? personLabel(person(a)) : pseudonym(a) ?? a.user);
+const studentTitle = (a) => (person(a) ? studentName(a) : pseudonym(a) ?? `Student ${a.user}`);
 
 let toastTimer;
 function toast(text, bad = false) {
@@ -157,7 +158,7 @@ function visible() {
   const q = $('search').value.trim().toLowerCase();
   return [...attempts.values()]
     .filter((a) => f === 'all' || a.status === f)
-    .filter((a) => !q || `${a.user} ${studentName(a)} ${person(a)?.email ?? ''} ${a.course} ${a.session} ${a.task} ${task(a)}`.toLowerCase().includes(q))
+    .filter((a) => !q || `${a.user} ${studentName(a)} ${person(a)?.email ?? ''} ${a.pseudonym ?? ''} ${a.course} ${a.session} ${a.task} ${task(a)}`.toLowerCase().includes(q))
     .sort((x, y) => (y.lastSeen ?? y.createdAt) - (x.lastSeen ?? x.createdAt));
 }
 
@@ -168,7 +169,7 @@ function connCell(a) {
 
 function renderList() {
   const rows = visible().map((a) => el('tr', { class: a.id === selected ? 'sel' : '', onclick: () => select(a.id) },
-    el('td', { text: studentName(a) }, person(a) ? el('span', { class: 'muted small', text: ` (${a.user})` }) : null),
+    el('td', { text: studentName(a) }, studentName(a) !== a.user ? el('span', { class: 'muted small', text: ` (${a.user})` }) : null),
     el('td', { text: task(a) }),
     el('td', {}, el('span', { class: `badge ${a.status}`, text: STATUS[a.status] ?? a.status }),
       a.offlineStart ? el('span', { class: 'badge warn', text: 'start offline' }) : null),
@@ -215,7 +216,7 @@ function renderKeyState() {
   const available = cryptoAvailable();
   const tokens = [...new Set([...attempts.values()].map((a) => a.enc))].filter(Boolean);
   const read = tokens.filter((t) => people.get(t)).length;
-  let text = 'brak w tej przeglądarce – widoczne są tylko userId';
+  let text = 'brak w tej przeglądarce – widoczne są pseudonimy lub userId';
   if (!available) text = 'niedostępny – przeglądarka odszyfrowuje dane tylko na stronie https:// lub localhost';
   else if (privateKey) text = `wczytany w tej przeglądarce (odczytano ${read} z ${tokens.length})${tokens.length && !read ? ' – klucz nie pasuje do danych' : ''}`;
   $('keyState').textContent = text;
@@ -292,7 +293,8 @@ function renderDetailHead() {
   const head = $('detailHead');
   if (!a || !head) return;
   const facts = [
-    ...(person(a) ? [['Student (userId)', a.user], ['E-mail', person(a).email]] : []),
+    ...(studentName(a) !== a.user ? [['Student (userId)', a.user]] : []),
+    ...(person(a) ? [['E-mail', person(a).email], ...(a.pseudonym ? [['Pseudonim', a.pseudonym]] : [])] : []),
     ['Kurs / zajęcia / zadanie', task(a)],
     ['Status', STATUS[a.status]],
     ['Połączenie', a.status === 'active' ? (a.online ? 'połączony' : `brak kontaktu (ostatnio ${ago(a.lastSeen)})`) : '—'],

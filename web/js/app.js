@@ -43,10 +43,9 @@ async function viewerName(a) {
   try {
     const { loadKey, personOf, personLabel } = await import(new URL('../keys.js', location.href));
     const person = await personOf(await loadKey(), a.enc);
-    return person ? `${personLabel(person)} (${a.user})` : null;
-  } catch {
-    return null;
-  }
+    if (person) return `${personLabel(person)} (${a.user})`;
+  } catch { /* the pseudonym or userId stays */ }
+  return a.pseudonym ? `Student ${a.pseudonym} (${a.user})` : null;
 }
 let view = null; // { attempt, state } of the watched student
 let boot = null;

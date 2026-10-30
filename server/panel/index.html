@@ -140,7 +140,7 @@
         </div>
         <div class="card form">
           <h2>Klucz prywatny – nazwiska studentów</h2>
-          <p class="muted">Lab Manager przesyła dane studenta zaszyfrowane; serwer LabZSK nie umie ich odczytać. Wczytaj plik kopii klucza prywatnego z Lab Managera, aby widzieć nazwiska i adresy e-mail zamiast userId. Plik jest czytany tylko w tej przeglądarce: klucz zostaje w niej jako nieeksportowalny i nie jest wysyłany na serwer. W innej przeglądarce trzeba wczytać go ponownie.</p>
+          <p class="muted">Lab Manager przesyła dane studenta zaszyfrowane; serwer LabZSK nie umie ich odczytać. Wczytaj plik kopii klucza prywatnego z Lab Managera, aby widzieć nazwiska i adresy e-mail zamiast pseudonimów. Plik jest czytany tylko w tej przeglądarce: klucz zostaje w niej jako nieeksportowalny i nie jest wysyłany na serwer. W innej przeglądarce trzeba wczytać go ponownie.</p>
           <p>Stan: <strong id="keyState"></strong></p>
           <form class="row" id="keyForm">
             <label>Plik klucza <input name="file" type="file" accept=".json,.pem,.txt,.key" required></label>
@@ -151,8 +151,8 @@
         </div>
         <div class="card form">
           <h2>Link do zadania (dla Lab Managera)</h2>
-          <p><code>https://&lt;adres LabZSK&gt;/?user=17&amp;course=8&amp;session=11&amp;task=26&amp;enc=…&amp;sig=…</code></p>
-          <p class="muted"><code>sig</code> = HMAC-SHA256(sekret, <code>user=17&amp;course=8&amp;session=11&amp;task=26&amp;enc=…</code>) zapisany szesnastkowo (64 znaki). Wartości: litery, cyfry, „-” i „_” (do 64 znaków). <code>enc</code> (opcjonalny) to szyfrogram danych studenta; w szablonie Lab Managera: <code>&amp;enc={encName}</code> przed <code>&amp;sig={sig}</code>.</p>
+          <p><code>https://&lt;adres LabZSK&gt;/?user=17&amp;course=8&amp;session=11&amp;task=26&amp;pseudonym=S-QGT8&amp;enc=…&amp;sig=…</code></p>
+          <p class="muted"><code>sig</code> = HMAC-SHA256(sekret, <code>user=17&amp;course=8&amp;session=11&amp;task=26&amp;pseudonym=S-QGT8&amp;enc=…</code>) zapisany szesnastkowo (64 znaki). Wartości: litery, cyfry, „-” i „_” (do 64 znaków). <code>pseudonym</code> (opcjonalny) to jawny pseudonim, a <code>enc</code> (opcjonalny) to szyfrogram danych studenta; w szablonie Lab Managera: <code>&amp;pseudonym={pseudonym}&amp;enc={encName}</code> przed <code>&amp;sig={sig}</code>.</p>
         </div>
       </section>
     </main>
