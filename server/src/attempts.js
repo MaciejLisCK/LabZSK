@@ -24,10 +24,14 @@ const MAX_STATE = 512 * 1024;
 
 export const LINK_PARAMS = ['user', 'course', 'session', 'task'];
 const PARAM = /^[A-Za-z0-9_-]{1,64}$/;
+// Student's personal data encrypted for the teacher (iv.key.data); the server cannot read it. Empty: no data.
+const ENC = /^([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)?$/;
+const MAX_ENC = 4096;
 
-/** Text signed in a task link: user=17&course=8&session=11&task=26. */
+/** Text signed in a task link: user=17&course=8&session=11&task=26, then enc=... when the link has it. */
 export function linkMessage(p) {
-  return LINK_PARAMS.map((k) => `${k}=${p[k]}`).join('&');
+  const text = LINK_PARAMS.map((k) => `${k}=${p[k]}`).join('&');
+  return p.enc == null ? text : `${text}&enc=${p.enc}`;
 }
 
 export function linkSignature(secret, p) {
@@ -40,6 +44,12 @@ export function linkParams(input) {
     const v = String(input?.[k] ?? '');
     if (!PARAM.test(v)) throw new ApiError(400, 'invalid_link', 'Link do zadania jest niepełny lub nieprawidłowy.');
     p[k] = v;
+  }
+  if (input?.enc != null) {
+    if (typeof input.enc !== 'string' || input.enc.length > MAX_ENC || !ENC.test(input.enc)) {
+      throw new ApiError(400, 'invalid_link', 'Link do zadania jest niepełny lub nieprawidłowy.');
+    }
+    p.enc = input.enc;
   }
   return p;
 }
@@ -121,14 +131,15 @@ export class Attempts {
         const sessionKey = random();
         const offline = input.offlineStart === true;
         const startedAt = offline && Number(input.startedAt) < now ? Number(input.startedAt) : now;
-        this.db.prepare(`INSERT INTO attempts (id, user_id, course, lab_session, task, status, session_hash, offline_start, created_at, last_seen)
-          VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)`).run(id, p.user, p.course, p.session, p.task, sha256(sessionKey), offline ? 1 : 0, startedAt, now);
+        this.db.prepare(`INSERT INTO attempts (id, user_id, course, lab_session, task, status, session_hash, offline_start, created_at, last_seen, enc)
+          VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)`).run(id, p.user, p.course, p.session, p.task, sha256(sessionKey), offline ? 1 : 0, startedAt, now, p.enc || null);
         this.audit(id, offline ? 'offline_start' : 'opened');
         this.bus.emit('change', id, []);
         return this.info(this.get(id), { mode: 'new', sessionKey });
       }
       if (input.sessionKey && a.session_hash === sha256(input.sessionKey)) {
-        this.db.prepare('UPDATE attempts SET last_seen = ? WHERE id = ?').run(now, a.id);
+        // the student may have changed their data in Lab Manager: the newest signed link wins
+        this.db.prepare('UPDATE attempts SET last_seen = ?, enc = COALESCE(?, enc) WHERE id = ?').run(now, p.enc || null, a.id);
         if (a.status === 'active') this.audit(a.id, 'continued');
         this.bus.emit('change', a.id, []);
         return this.info(this.get(a.id), { mode: 'continue' });
@@ -245,6 +256,7 @@ export class Attempts {
       offlineEvents: a.offline_events,
       mistakes: a.mistakes,
       cycles: a.cycles,
+      enc: a.enc,
     };
   }
 

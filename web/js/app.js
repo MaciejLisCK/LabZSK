@@ -38,12 +38,25 @@ const t = () => strings(settings.lang);
 // Teacher's read-only view of a student (?view=<attempt>, opened from the panel at /panel/sim/),
 // a lab task from a Lab Manager link, a blocked task, or free learning.
 const viewId = new URL(location.href).searchParams.get('view');
+/** The student's name for the teacher's view, read with the panel's key in this browser. */
+async function viewerName(a) {
+  try {
+    const { loadKey, personOf, personLabel } = await import(new URL('../keys.js', location.href));
+    const person = await personOf(await loadKey(), a.enc);
+    return person ? `${personLabel(person)} (${a.user})` : null;
+  } catch {
+    return null;
+  }
+}
 let view = null; // { attempt, state } of the watched student
 let boot = null;
 if (viewId) {
   try {
     const res = await fetch(`../api/attempts/${encodeURIComponent(viewId)}`, { cache: 'no-store' });
-    if (res.ok) view = await res.json();
+    if (res.ok) {
+      view = await res.json();
+      view.studentName = await viewerName(view.attempt);
+    }
     else boot = { blocked: res.status === 401 ? 'view-login' : 'cleared' };
   } catch {
     boot = { blocked: 'view-offline' };
@@ -974,7 +987,7 @@ function renderAttemptBar() {
     bar.classList.toggle('finished', a.status === 'finished');
     bar.classList.add('viewer');
     $('attemptTask').textContent = taskTitle(a);
-    $('attemptStudent').textContent = a.user;
+    $('attemptStudent').textContent = view.studentName ?? a.user;
     $('attemptNote').textContent = `${tr.viewerNote}${a.status === 'finished' ? ` ${tr.viewerFinished}` : ''}`;
     const on = a.status === 'active' && a.online;
     conn.className = `conn ${on ? 'online' : 'offline'}`;

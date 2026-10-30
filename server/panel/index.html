@@ -49,13 +49,13 @@
                 <option value="finished">Zakończone</option>
                 <option value="all">Wszystkie</option>
               </select>
-              <input id="search" type="search" placeholder="Szukaj: userId, kurs, zajęcia, zadanie…">
+              <input id="search" type="search" placeholder="Szukaj: student, kurs, zajęcia, zadanie…">
               <span class="muted" id="count"></span>
             </div>
             <div class="table-wrap">
               <table class="attempts">
                 <thead>
-                  <tr><th>Student (userId)</th><th>Kurs / zajęcia / zadanie</th><th>Status</th><th>Połączenie</th><th>Błędy</th><th>Cykle</th><th>Kroki</th><th>Ostatnio</th></tr>
+                  <tr><th>Student</th><th>Kurs / zajęcia / zadanie</th><th>Status</th><th>Połączenie</th><th>Błędy</th><th>Cykle</th><th>Kroki</th><th>Ostatnio</th></tr>
                 </thead>
                 <tbody id="rows"></tbody>
               </table>
@@ -139,9 +139,20 @@
           <p class="error" id="secretError"></p>
         </div>
         <div class="card form">
+          <h2>Klucz prywatny – nazwiska studentów</h2>
+          <p class="muted">Lab Manager przesyła dane studenta zaszyfrowane; serwer LabZSK nie umie ich odczytać. Wczytaj plik kopii klucza prywatnego z Lab Managera, aby widzieć nazwiska i adresy e-mail zamiast userId. Plik jest czytany tylko w tej przeglądarce: klucz zostaje w niej jako nieeksportowalny i nie jest wysyłany na serwer. W innej przeglądarce trzeba wczytać go ponownie.</p>
+          <p>Stan: <strong id="keyState"></strong></p>
+          <form class="row" id="keyForm">
+            <label>Plik klucza <input name="file" type="file" accept=".json,.pem,.txt,.key" required></label>
+            <button class="btn">Wczytaj klucz</button>
+            <button class="btn danger-outline" id="keyClear" type="button">Usuń z tej przeglądarki</button>
+          </form>
+          <p class="error" id="keyError"></p>
+        </div>
+        <div class="card form">
           <h2>Link do zadania (dla Lab Managera)</h2>
-          <p><code>https://&lt;adres LabZSK&gt;/?user=17&amp;course=8&amp;session=11&amp;task=26&amp;sig=…</code></p>
-          <p class="muted"><code>sig</code> = HMAC-SHA256(sekret, <code>user=17&amp;course=8&amp;session=11&amp;task=26</code>) zapisany szesnastkowo (64 znaki). Wartości: litery, cyfry, „-” i „_” (do 64 znaków).</p>
+          <p><code>https://&lt;adres LabZSK&gt;/?user=17&amp;course=8&amp;session=11&amp;task=26&amp;enc=…&amp;sig=…</code></p>
+          <p class="muted"><code>sig</code> = HMAC-SHA256(sekret, <code>user=17&amp;course=8&amp;session=11&amp;task=26&amp;enc=…</code>) zapisany szesnastkowo (64 znaki). Wartości: litery, cyfry, „-” i „_” (do 64 znaków). <code>enc</code> (opcjonalny) to szyfrogram danych studenta; w szablonie Lab Managera: <code>&amp;enc={encName}</code> przed <code>&amp;sig={sig}</code>.</p>
         </div>
       </section>
     </main>
