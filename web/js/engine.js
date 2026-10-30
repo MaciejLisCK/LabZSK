@@ -96,6 +96,8 @@ export class Machine {
     this.current = null; // { row, col } of the PM cell being executed
     this.memCursor = null; // PO address touched by the last memory microoperation
     this.lastCheck = null; // { name, ok, bad, good } result of the last validation
+    this.onMistake = null; // called right after a mistake is counted
+    this.checkpoint = null; // state before the current cycle
     this.miniLog = [];
     this.logText = '';
     this.logOpen = false;
@@ -187,6 +189,7 @@ export class Machine {
         this.mistakes++;
         this.updateMark();
         this.lastCheck = { name, ok: false, bad, good: r.value };
+        this.onMistake?.();
       } else {
         this.log(`${nl}${pad(name, 15)} = ${r.value} / ${hex(r.value)}h\n`);
         this.lastCheck = { name, ok: true, good: r.value };
@@ -841,6 +844,16 @@ export class Machine {
       logText: this.logText,
       logOpen: this.logOpen,
     };
+  }
+
+  /** Remembers the state before a cycle, to which a reload in the middle of the cycle returns. */
+  saveCheckpoint() {
+    this.checkpoint = structuredClone(this.snapshot());
+  }
+
+  /** The state to return to after a reload: the cycle is repeated, but its mistakes and log stay. */
+  scoredCheckpoint() {
+    return { ...(this.checkpoint ?? this.snapshot()), mark: this.mark, mistakes: this.mistakes, logText: this.logText, logOpen: this.logOpen };
   }
 
   restore(s) {

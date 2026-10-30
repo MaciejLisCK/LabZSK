@@ -71,6 +71,11 @@ if (viewer) {
 }
 m.updateMark();
 if (attempt) {
+  // A mistake is stored and queued at once: reloading the page must not take it back.
+  m.onMistake = () => {
+    attempt.commit();
+    save(STATE_KEY, m.scoredCheckpoint());
+  };
   const log = m.log.bind(m);
   m.log = (text) => {
     log(text);
@@ -413,6 +418,7 @@ function startCycle(micro) {
   if (gen || editMode || autoRunning || !m.canSimulate || locked()) return;
   closeMenus();
   if (!simStart) simStart = new Date();
+  m.saveCheckpoint();
   persist(); // state before the cycle, in case the page is reloaded mid-cycle
   gen = m.runCycle(micro);
   step();
