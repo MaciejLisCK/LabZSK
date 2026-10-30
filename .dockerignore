@@ -1,0 +1,9 @@
+*
+!web
+!server
+!tools
+web/test
+server/test
+server/data
+server/.env
+**/node_modules

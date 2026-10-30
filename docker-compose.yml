@@ -1,0 +1,17 @@
+services:
+  labzsk:
+    build: .
+    image: labzsk:latest
+    container_name: labzsk
+    restart: unless-stopped
+    ports:
+      - "${LABZSK_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - labzsk-data:/data
+
+volumes:
+  # database, signing key and logs; kept across updates
+  labzsk-data:

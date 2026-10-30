@@ -69,7 +69,7 @@ export function emptyPO() {
 export class Machine {
   constructor({ lang = 'pl', marks = DEFAULT_MARKS } = {}) {
     this.lang = lang;
-    this.marks = { ...marks };
+    this.marks = marks && { ...marks };
     this.regs = Object.fromEntries(REG_NAMES.map((n) => [n, new Register(n)]));
     this.flags = Object.fromEntries(FLAG_NAMES.map((n) => [n, n === 'MAV' ? 1 : 0]));
     this.pm = emptyPM();
@@ -138,7 +138,8 @@ export class Machine {
 
   closeLog() {
     const t = this.t;
-    this.log(`\n${pad(time(), 20)}\n${t.simStop}\n${t.mark}: ${this.mark}   ${t.mistakes}: ${this.mistakes}\n`);
+    const mark = this.mark == null ? '' : `${t.mark}: ${this.mark}   `;
+    this.log(`\n${pad(time(), 20)}\n${t.simStop}\n${mark}${t.mistakes}: ${this.mistakes}\n`);
     const text = this.logText;
     this.logText = '';
     this.logOpen = false;
@@ -157,7 +158,12 @@ export class Machine {
     this.registerToCheck = name;
   }
 
+  /** Without thresholds (marks = null) the simulator gives no mark. */
   updateMark() {
+    if (!this.marks) {
+      this.mark = null;
+      return;
+    }
     const { first, second, third } = this.marks;
     if (this.mistakes >= third) this.mark = 2;
     else if (this.mistakes >= second) this.mark = 3;
@@ -801,11 +807,14 @@ export class Machine {
     this.canSimulate = true;
   }
 
-  clearRegisters() {
+  /** keepScore: in a controlled attempt the mistakes and cycles counted so far are not reset. */
+  clearRegisters({ keepScore = false } = {}) {
     this.log(`\n${this.t.clearingRegister}\n`);
-    this.mark = 5;
-    this.mistakes = 0;
-    this.cycle = 0;
+    if (!keepScore) {
+      this.mistakes = 0;
+      this.cycle = 0;
+    }
+    this.updateMark();
     this.tact = 0;
     for (const r of Object.values(this.regs)) r.reset();
     for (const f of FLAG_NAMES) this.flags[f] = f === 'MAV' ? 1 : 0;

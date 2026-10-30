@@ -1,0 +1,66 @@
+/* CPU diagram – shared by the simulator and the teacher panel (tiles). */
+.cpu {
+  --d-bg: #1b6033;
+  --d-bus: #85c648;
+  --d-text: #f942ef;
+  --d-ps: #aaaaaa;
+  position: relative;
+  min-width: 640px;
+  aspect-ratio: 1000 / 560;
+  max-height: 58vh;
+  margin: 0 auto;
+  background: var(--d-bg);
+  border-radius: 8px;
+  container-type: inline-size;
+  font-family: Tahoma, Verdana, system-ui, sans-serif;
+}
+.cpu[data-skin="1"] { --d-bg: #1f129e; --d-bus: #0270df; --d-text: #f9ef42; }
+.cpu[data-skin="2"] { --d-bg: #b10105; --d-bus: #fe4145; --d-text: #05feb1; }
+.cpu[data-skin="3"] { --d-bg: #050505; --d-bus: #787878; --d-text: #f9eff5; }
+
+.wires { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wires .bus { stroke: var(--d-bus); stroke-width: 10; fill: none; stroke-linejoin: bevel; }
+.wires .bus.thin { stroke-width: 5; }
+.wires .alu { fill: var(--d-bus); }
+
+.reg, .flag { position: absolute; }
+.reg-name {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  color: var(--d-text);
+  font-size: 1.55cqw;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.reg.center .reg-name { left: 50%; transform: translateX(-50%); }
+.reg.right .reg-name { left: 80%; transform: translateX(-50%); }
+.flag .reg-name { left: 50%; transform: translateX(-50%); }
+
+.reg input, .flag input, .rbps {
+  width: 100%;
+  height: 100%;
+  border: 1px solid #7a7a7a;
+  border-radius: 2px;
+  background: #ffffff;
+  color: #000000;
+  font: 1.6cqw/1 Tahoma, Verdana, system-ui, sans-serif;
+  padding: 0 0.6cqw;
+  white-space: pre;
+}
+.flag input { text-align: center; padding: 0; }
+.reg input::placeholder { color: #8a8a8a; }
+.reg input[readonly], .flag input[readonly] { cursor: default; }
+.reg input:focus-visible, .flag input:focus-visible { outline: 3px solid #2196f3; outline-offset: 0; }
+.reg.bus input { background: var(--d-bus); }
+.reg.ps input, .rbps { background: var(--d-ps); }
+.rbps { display: flex; align-items: center; position: absolute; }
+.reg.check input { background: var(--check, #ffeb3b); border-color: #000; font-weight: 700; }
+.reg.editable input, .flag.editable input { background: #fffde7; border-color: #000; cursor: text; }
+.reg.wrong input { animation: wrong 1.2s ease-out; }
+.reg.right-answer input { animation: right 0.9s ease-out; }
+@keyframes wrong { 0%, 40% { background: #ff6b6b; } 100% { background: #ffffff; } }
+@keyframes right { 0% { background: #9be59f; } 100% { background: #ffffff; } }
+.cpu .hidden { display: none; }
+

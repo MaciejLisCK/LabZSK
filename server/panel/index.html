@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>LabZSK – panel nauczyciela</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231b6033'/%3E%3Cpath d='M6 10h20M6 22h20M10 6v20M22 6v20' stroke='%2385c648' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="sim/css/cpu.css">
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <section class="login" id="loginView" hidden>
+    <form class="card login-card" id="loginForm">
+      <h1>LabZSK – panel nauczyciela</h1>
+      <label>Login <input name="login" autocomplete="username" required></label>
+      <label>Hasło <input name="password" type="password" autocomplete="current-password" required></label>
+      <p class="error" id="loginError"></p>
+      <button class="btn primary">Zaloguj</button>
+    </form>
+  </section>
+
+  <div id="appView" hidden>
+    <header class="top">
+      <strong class="brand">LabZSK</strong>
+      <span class="muted">panel nauczyciela</span>
+      <nav class="tabs" id="tabs">
+        <button data-tab="list" class="active">Podejścia</button>
+        <button data-tab="live">Na żywo</button>
+        <button data-tab="link">Link testowy</button>
+        <button data-tab="verify">Weryfikacja logu</button>
+        <button data-tab="settings">Ustawienia</button>
+      </nav>
+      <span class="stream" id="streamState"></span>
+      <span class="muted" id="who"></span>
+      <button class="btn small" id="logout">Wyloguj</button>
+    </header>
+    <div class="warning" id="noSecret" hidden>
+      Brak wspólnego sekretu – studenci nie mogą rozpocząć zadań. Ustaw go w zakładce <a href="#" data-goto="settings">Ustawienia</a> i wpisz ten sam w Lab Managerze.
+    </div>
+
+    <main>
+      <section class="tab" id="tab-list">
+        <div class="split">
+          <div class="card list-card">
+            <div class="toolbar">
+              <select id="filter">
+                <option value="active">W toku</option>
+                <option value="finished">Zakończone</option>
+                <option value="all">Wszystkie</option>
+              </select>
+              <input id="search" type="search" placeholder="Szukaj: userId, kurs, zajęcia, zadanie…">
+              <span class="muted" id="count"></span>
+            </div>
+            <div class="table-wrap">
+              <table class="attempts">
+                <thead>
+                  <tr><th>Student (userId)</th><th>Kurs / zajęcia / zadanie</th><th>Status</th><th>Połączenie</th><th>Błędy</th><th>Cykle</th><th>Kroki</th><th>Ostatnio</th></tr>
+                </thead>
+                <tbody id="rows"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card detail" id="detail">
+            <p class="muted">Wybierz podejście z listy, aby zobaczyć jego log na żywo.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab" id="tab-live" hidden>
+        <div class="toolbar">
+          <div class="seg" id="liveMode">
+            <button data-mode="log" class="active">Log</button>
+            <button data-mode="cpu">CPU</button>
+          </div>
+          <span class="muted">Podejścia w toku, aktualizowane na bieżąco. „Pełny widok” otwiera całą aplikację studenta (tylko do odczytu).</span>
+        </div>
+        <div class="tiles" id="tiles"></div>
+      </section>
+
+      <section class="tab" id="tab-link" hidden>
+        <form class="card form" id="linkForm">
+          <h2>Link testowy</h2>
+          <p class="muted">Lab Manager tworzy takie linki sam. Tutaj możesz wygenerować link do testów – działa tak samo jak link z Lab Managera.</p>
+          <div class="row">
+            <label>Student (userId) <input name="user" required pattern="[A-Za-z0-9_\-]{1,64}" value="17"></label>
+            <label>Kurs <input name="course" required pattern="[A-Za-z0-9_\-]{1,64}" value="8"></label>
+            <label>Zajęcia <input name="session" required pattern="[A-Za-z0-9_\-]{1,64}" value="11"></label>
+            <label>Zadanie <input name="task" required pattern="[A-Za-z0-9_\-]{1,64}" value="26"></label>
+          </div>
+          <p class="error" id="linkError"></p>
+          <button class="btn primary">Utwórz link</button>
+          <div id="linkResult"></div>
+        </form>
+      </section>
+
+      <section class="tab" id="tab-verify" hidden>
+        <form class="card form" id="verifyForm">
+          <h2>Weryfikacja logu</h2>
+          <p class="muted">Ten sam algorytm co skrypt sprawdzający w Lab Managerze (<code>tools/verify-log.mjs</code>).</p>
+          <label>Plik logu <input name="file" type="file" accept=".log,.txt" required></label>
+          <p class="muted">Oczekiwany student i zadanie (opcjonalnie) – log innego studenta lub zadania zostanie odrzucony.</p>
+          <div class="row">
+            <label>Student (userId) <input name="user"></label>
+            <label>Kurs <input name="course"></label>
+            <label>Zajęcia <input name="session"></label>
+            <label>Zadanie <input name="task"></label>
+          </div>
+          <button class="btn primary">Sprawdź</button>
+          <div id="verifyResult"></div>
+        </form>
+      </section>
+
+      <section class="tab" id="tab-settings" hidden>
+        <div class="card form">
+          <h2>Wspólny sekret LabZSK i Lab Managera</h2>
+          <p class="muted">Ten sam sekret wpisuje się w ustawieniach Lab Managera. Służy do podpisywania linków do zadań i do odcisku w logu, który sprawdza skrypt w Lab Managerze.</p>
+          <p>Stan: <strong id="secretState"></strong></p>
+          <div class="row">
+            <input class="link" id="secretValue" readonly placeholder="ukryty">
+            <button class="btn" id="secretShow" type="button">Pokaż</button>
+            <button class="btn" id="secretCopy" type="button">Kopiuj</button>
+          </div>
+          <p class="note">Zmiana sekretu unieważnia wszystkie dotychczasowe linki, a logi z odciskiem starego sekretu przestaną przechodzić weryfikację. Nie zmieniaj go w trakcie semestru; po zmianie wpisz nowy sekret w Lab Managerze.</p>
+          <div class="row">
+            <button class="btn primary" id="secretGenerate" type="button">Wygeneruj nowy sekret</button>
+          </div>
+          <form class="row" id="secretForm">
+            <label>Albo wklej istniejący sekret (min. 32 znaki) <input name="secret" autocomplete="off" minlength="32" required></label>
+            <button class="btn">Zapisz</button>
+          </form>
+          <p class="error" id="secretError"></p>
+        </div>
+        <div class="card form">
+          <h2>Link do zadania (dla Lab Managera)</h2>
+          <p><code>https://&lt;adres LabZSK&gt;/?user=17&amp;course=8&amp;session=11&amp;task=26&amp;sig=…</code></p>
+          <p class="muted"><code>sig</code> = HMAC-SHA256(sekret, <code>user=17&amp;course=8&amp;session=11&amp;task=26</code>) zapisany szesnastkowo (64 znaki). Wartości: litery, cyfry, „-” i „_” (do 64 znaków).</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="dlg">
+    <form method="dialog" class="dlg">
+      <h2 id="dlgTitle"></h2>
+      <div id="dlgBody"></div>
+      <div class="dlg-buttons" id="dlgButtons"></div>
+    </form>
+  </dialog>
+  <div class="toast" id="toast"></div>
+
+  <script type="module" src="panel.js"></script>
+</body>
+</html>

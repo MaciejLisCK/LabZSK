@@ -1,0 +1,15 @@
+{
+  "name": "labzsk-server",
+  "private": true,
+  "type": "module",
+  "description": "LabZSK server: controlled attempts, live logs, teacher panel and signed logs",
+  "license": "GPL-3.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --no-warnings=ExperimentalWarning src/server.js",
+    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.mjs",
+    "teacher": "node --no-warnings=ExperimentalWarning src/cli.js"
+  }
+}
