@@ -340,6 +340,26 @@ function renderTiles() {
   if (!list.length) box.append(el('p', { class: 'muted empty', text: 'Brak podejść w toku.' }));
 }
 
+/** Tile width in the live view; remembered in this browser. */
+function setTileSize(px) {
+  const size = Math.max(300, Math.min(1600, Number(px) || 520));
+  $('tiles').style.setProperty('--tile', `${size}px`);
+  $('tileSize').value = String(size);
+  for (const b of $('tileSizes').children) b.classList.toggle('active', Number(b.dataset.size) === size);
+  try {
+    localStorage.setItem('labzsk:tileSize', String(size));
+  } catch { /* storage unavailable */ }
+}
+$('tileSizes').addEventListener('click', (e) => {
+  if (e.target.dataset.size) setTileSize(e.target.dataset.size);
+});
+$('tileSize').addEventListener('input', (e) => setTileSize(e.target.value));
+try {
+  setTileSize(localStorage.getItem('labzsk:tileSize') ?? 520);
+} catch {
+  setTileSize(520);
+}
+
 $('liveMode').addEventListener('click', (e) => {
   const mode = e.target.dataset.mode;
   if (!mode) return;

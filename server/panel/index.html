@@ -73,6 +73,13 @@
             <button data-mode="log" class="active">Log</button>
             <button data-mode="cpu">CPU</button>
           </div>
+          <div class="seg" id="tileSizes" title="Rozmiar kafelków">
+            <button data-size="360">S</button>
+            <button data-size="520">M</button>
+            <button data-size="760">L</button>
+            <button data-size="1100">XL</button>
+          </div>
+          <label class="size-range">Rozmiar <input type="range" id="tileSize" min="300" max="1600" step="20" value="520"></label>
           <span class="muted">Podejścia w toku, aktualizowane na bieżąco. „Pełny widok” otwiera całą aplikację studenta (tylko do odczytu).</span>
         </div>
         <div class="tiles" id="tiles"></div>
